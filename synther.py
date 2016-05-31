@@ -15,8 +15,8 @@ import numpy as np
 import pyLTE as p
 import sparsetools as sp
 import fitting
-from regions import region_start, region_end, region_length, get_region, get_region_N, get_nlambda, get_dlambda
-from abundutils import abund
+import regions as regs
+from abundutils import abund, check_abund
 
 _MODEL_FILE = "data/falc_filled.nc"
 
@@ -74,8 +74,8 @@ def _convolve(var, tr):
 
 def _min_of(wav, data, region):
     # Create an interval over the region
-    start_wl = region_start(region)
-    end_wl = region_end(region)
+    start_wl = region.lambda0
+    end_wl = region.lambda_end
     interval = (wav >= start_wl) & (wav <= end_wl)
     
     # Find the minimum value
@@ -157,56 +157,6 @@ class FitResult:
 def _synth(s, m):
     return s.synth(m.ltau, m.temp, m.pgas, m.vlos, m.vturb, m.B, m.inc, m.azi, False)
 
-def _check_element(elem):
-    """
-    Checks so an element name won't cause a buffer overflow. Throws an exception if it would.
-    
-    If the element name is more then 2 bytes this will cause a buffer overflow in the underlying
-    code, which is beyond my control. Since no element to my knowledge will be too long, this
-    shouldn't be a problem. However, typos happen, and I also prefer to avoid buffer overflows out
-    of principle.
-    """
-    
-    # Check so the name of the element is not too long.
-    # NOTE: Not sure if this check is done correctly. The name should be at most 2 bytes long,
-    #       so if len(e[0]) doesn't return the number of bytes in the string this might not
-    #       prevent every buffer overflow.
-    if len(elem[0]) > 2:
-        raise Exception("Element name cannot have a length greater then 2.")
-
-def _check_abund(abund):
-    """
-    Checks so the elements in the abundencies will not cause a buffer overflow. An exception is thrown
-    if an element would cause a buffer overflow.
-    
-    If the element name is more then 2 bytes this will cause a buffer overflow in the underlying
-    code, which is beyond my control. Since no element to my knowledge will be too long, this
-    shouldn't be a problem. However, typos happen, and I also prefer to avoid buffer overflows out
-    of principle.
-    """
-    
-    # Prevent possible buffer overflows that occur when the name of an element is too long
-    for a in abund:
-        for e in a:
-            _check_element(e)
-
-def _check_regions(regions, obs_wav):
-    """
-    Check so the region fits the observed data. Specifically, this function ensures that the number of data points
-    in the region equals the number of data points in the observed data within the same interval as the region.
-    If the numbers doesn't match, an exception is thrown.
-    """
-    print("*** Function: _check_regions")
-    for r in regions:
-        rs = region_start(r)
-        re = region_end(r)
-        obs_nlambda = len(obs_wav[(rs <= obs_wav) & (obs_wav <= re)])
-        nlambda = get_nlambda(r)
-        print("region start:", rs, "\nregion end:", re, "\nnlambda:", nlambda, "\nobs_nlambda:", obs_nlambda)
-        if obs_nlambda != nlambda:
-            raise Exception("The region had " + str(nlambda) + "data point, but the observed data had " + str(obs_nlambda) + " data points. They must have the same amount of data points.")
-    print("***\n")
-
 def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
     """
     This files synthesizes a spectrum and attempts to fit it to the given observed spectrum.
@@ -214,26 +164,23 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     
     # Create the updates and check them
     abund_updates = [abund(elem, a) for a in abund_range]
-    _check_abund(abund_updates)
+    check_abund(abund_updates)
 
     # Setup the region data
-    _check_regions(regions, obs_wav)
-    region_data = np.array(regions, dtype = "float64, float64, int32, float64")
+    region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
+    for ri in range(len(regions)):
+        if isinstance(regions[ri], tuple):
+            region_data[ri] = regions[ri]
+            regions[ri] = regs.new_region(obs_wav, obs_inten, *regions[ri])
+        else:
+            print(regions[ri].to_tuple())
+            region_data[ri] = regions[ri].to_tuple()
 
     # Init LTE class
     s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
 
     # Read a model
     m = sp.model(_MODEL_FILE)
-    
-    # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
-    # due to convective motions.
-    # IMPORTANT QUESTIONS:
-    # 1. Where does 1.83 km/s come from?
-    # 2. What's "tw"?
-    # 3. What's the different
-    tw = (np.arange(15)-7)*(obs_wav[1] - obs_wav[0])
-#    psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.])
     
     # Generate the synthetic lines
     synth_data = []
@@ -243,6 +190,7 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
 #        synth_data.append(_synth(s, m))
     for a in abund_updates:
         # Update the abundence and synthasize a new spectrum
+        print(a)
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
 #    if use_default_abund:
@@ -252,12 +200,8 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     wav = s.getwav()
     
     # Fit the data
-    nmul = 1
-    nshift = nmul*101
     abund_count = len(abund_updates)
-
-    # Create shifts
-    shift = 0.2*(np.arange(nshift) / (nshift - nmul*1.0)) - 0.1
+    
 #    print("SHIFT!!!\n", shift, "\nNO MORE SHIFT!!!")
     
     # A list of the chi sqaured values for each region
@@ -265,9 +209,13 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     region_result = []
     
     # For each region
-    for ri, r in enumerate(region_data):
+    for ri, r in enumerate(regions):
+        # Create shifts
+        nshift = r.nmul*r.nshift
+        shift = 0.2*(np.arange(nshift) / (nshift - r.nmul*1.0)) - 0.1
+
         # Get the number of data points that the region should have
-        nlambda = get_nlambda(r)
+        nlambda = r.nlambda
         
         # Create the array containing the best shifts
         rshift = np.zeros(abund_count)
@@ -281,20 +229,34 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
         inten_max = np.zeros(abund_count, dtype = np.float64)
         
         # Get the region of the atlas spectrum
-        robs_wav, robs_inten = get_region(r, obs_wav, obs_inten)
-        print("*** Region:", r)
-        print("    Region end:", region_end(r), "\n")
+        robs_wav = r.wav
+        robs_inten = r.inten
+        print("*** Region:", str(r))
+#        print("    Region end:", r.lambda_end, "\n")
+#        print("*** robs_wav:\n", robs_wav, "\n***\n")
+#        print("*** robs_inten:\n", robs_inten, "\n***\n")
 #        print("*** robe_wav\n", robs_wav, "\n***\n")
+
+        # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
+        # due to convective motions.
+        # IMPORTANT QUESTIONS:
+        # 1. Where does 1.83 km/s come from?
+        # 2. What's "tw"?
+        # 3. What's the different
+        tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
+#        print("*** tw:\n", tw, "\n***\n")
         
         # WHAT IS THIS AND WHAT DOES IT DO???
         #
-        # THE LAST THING, 1.83*np.ceil(region_end(r))/300000.0, IS A GUESS THAT ORIGINATED FROM
-        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(region_end(r)), AND THE LATTER WOULD
+        # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
+        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
         # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
         # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
-        psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(region_end(r))/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(r.lambda_end)/300000.0])
+        psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.0])
+#        print("*** gaussian:\n", psf, "\n***\n")
         
         # For each abundence
         for a, spec in enumerate(synth_data):
@@ -304,16 +266,19 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
             spec /= inten_max[a]
             
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
-            rwav, rspec = get_region(r, wav, spec, left_padding = 1e-9)
+            rwav, rspec = r.get_contained(wav, spec, left_padding = 1e-9)
+#            print("*** rwav:\n", rwav, "\n***\n")
             
             # Handle errors due to math with floating point numbers
             if len(rwav) != nlambda:
                 print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - nlambda, "\n")
+#                print("*** rwav (len ", len(rwav), "):\n", rwav, "\n*** robs_wav: (len ", len(robs_wav), ")\n", robs_wav, "***\n", sep = "")
                 rwav = rwav[:nlambda]
                 rspec = rspec[:nlambda]
 
             # Convolve the spectra
             rspec = _convolve(rspec, psf / psf.sum())
+#            print("*** rspec:\n", rspec, "\n***\n")
         
             # For each shift
             for ii in range(nshift):
@@ -322,10 +287,11 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
                 #                     might not align properly due to inconsistent spacing between the wavelength
                 #                     data points in the atlas data.
                 #                     HOWEVER doing so gives the wrong result... the "best" shift becomes too large. WHY?
-                if interp_obs:
+                if interp_obs or r.interp_obs:
                     isyn = np.interp(robs_wav, rwav - shift[ii], rspec)
                 else:
                     isyn = np.interp(rwav, rwav - shift[ii], rspec)
+ #               print("*** isyn: (len ", len(isyn), ")\n", isyn, "\n***\n", sep = "")
                 
                 # Calculate and store the chi squared
                 rchisq[a,ii] = ((robs_inten - isyn)**2).sum()
