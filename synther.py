@@ -16,7 +16,7 @@ import pyLTE as p
 import sparsetools as sp
 import fitting
 import regions as regs
-from abundutils import abund, check_abund
+import abundutils as au
 
 _MODEL_FILE = "data/falc_filled.nc"
 
@@ -72,58 +72,11 @@ def _convolve(var, tr):
     fftresult = np.fft.irfft(conv)
     return fftresult[0:n]
 
-def _min_of(wav, data, region):
-    # Create an interval over the region
-    start_wl = region.lambda0
-    end_wl = region.lambda_end
-    interval = (wav >= start_wl) & (wav <= end_wl)
-    
-    # Find the minimum value
-    region_data = data[interval]
-    min_value = min(region_data)
-
-    # Find the corresponding wavelength
-    region_wl = wav[interval]
-    min_value_wl = region_wl[region_data == min_value][0]
-
-    # Return the wavelength and value of the minimum
-    return min_value_wl, min_value
-
-class SynthResult(object):
-    """
-    Encapsulates the result synth_spectrum
-    """
-
-    def __init__(self, synth_data, LTE, model, abund_updates, region_data):
-        self.synth_data = synth_data
-        self.inten = [s[0,0,0,:,0] for s in synth_data]
-        self.wav = LTE.getwav()
-        self.LTE = LTE
-        self.model = model
-        self.abund_updates = abund_updates
-        self.region_data = region_data
-
-    def region_min(self):
-        """
-        Calculates the minimum values of each region in the synthetic spectrum, for each
-        abundance. Specifically, it will return two arrays. Each row of these arrays will
-        represent an abundance while each column a region. The first array will contain
-        the minimum values, while the second array contains the corresponding wavelengths.
-        """
-        result_wl = []
-        result_vals = []
-        for inten in self.inten:
-            wl_min_values = []
-            min_values = []
-            for r in self.region_data:
-                mwl, mv = _min_of(self.wav, inten, r)
-                wl_min_values.append(mwl)
-                min_values.append(mv)
-            result_wl.append(wl_min_values)
-            result_vals.append(min_values)
-        return np.array(result_vals), np.array(result_wl)
-
 class RegionResult(object):
+    """
+    Represents the result within a region.
+    """
+
     def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_norm_factor, abund):
         self.region = region
         self.wav = wav
@@ -134,8 +87,13 @@ class RegionResult(object):
         self.chisq_all = chisq_all
         self.inten_norm_factor = inten_norm_factor
         self.abund = abund
+        
+        i = np.argmin(chisq)
+        self.best_shift = shift[i]
+        self.best_chisq = chisq[i]
+        self.best_abund = abund[i]
 
-class FittedSynthResult(object):
+class SynthResult(object):
     """
     Encapsulates the result of a fitted specrum synthesis
     """
@@ -146,28 +104,16 @@ class FittedSynthResult(object):
         self.wav = wav
         self.raw_synth_data = raw_synth_data
 
-class FitResult:
-    def __init__(self, abund, wav, inten, dlambda, chisq):
-        self.abund = abund
-        self.wav = wav
-        self.inten = inten
-        self.dlambda = dlambda
-        self.chisq = chisq
-
 def _synth(s, m):
+    """
+    Helper function that synthazises a line
+    """
     return s.synth(m.ltau, m.temp, m.pgas, m.vlos, m.vturb, m.B, m.inc, m.azi, False)
 
-def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
-    """
-    This files synthesizes a spectrum and attempts to fit it to the given observed spectrum.
-    """
-    
-    # Create the updates and check them
-    abund_updates = [abund(elem, a) for a in abund_range]
-    check_abund(abund_updates)
-
+def _setup_regions(obs_wav, obs_inten, regions):
     # Setup the region data
     region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
+    region_list = list(regions)
     for ri in range(len(regions)):
         if isinstance(regions[ri], tuple):
             region_data[ri] = regions[ri]
@@ -175,39 +121,15 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
         else:
             print(regions[ri].to_tuple())
             region_data[ri] = regions[ri].to_tuple()
+    return region_list, region_data
 
-    # Init LTE class
-    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
-
-    # Read a model
-    m = sp.model(_MODEL_FILE)
-    
-    # Generate the synthetic lines
-    synth_data = []
-    syn = []
-    if use_default_abund:
-        abund_updates = [[]] + abund_updates
-#        synth_data.append(_synth(s, m))
-    for a in abund_updates:
-        # Update the abundence and synthasize a new spectrum
-        print(a)
-        s.updateABUND(a, verbose = verbose)
-        synth_data.append(_synth(s, m))
-#    if use_default_abund:
-#        abund_updates = [[]] + abund_updates
-
-    # Get the wavelengths
-    wav = s.getwav()
-    
+def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
     # Fit the data
     abund_count = len(abund_updates)
     
-#    print("SHIFT!!!\n", shift, "\nNO MORE SHIFT!!!")
-    
     # A list of the chi sqaured values for each region
-    syn =  [[]]*len(region_data)
     region_result = []
-    
+
     # For each region
     for ri, r in enumerate(regions):
         # Create shifts
@@ -232,10 +154,6 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
         robs_wav = r.wav
         robs_inten = r.inten
         print("*** Region:", str(r))
-#        print("    Region end:", r.lambda_end, "\n")
-#        print("*** robs_wav:\n", robs_wav, "\n***\n")
-#        print("*** robs_inten:\n", robs_inten, "\n***\n")
-#        print("*** robe_wav\n", robs_wav, "\n***\n")
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions.
@@ -254,8 +172,8 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
         # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
-#        psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(r.lambda_end)/300000.0])
-        psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.0])
+        psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(r.lambda_end)/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.0])
 #        print("*** gaussian:\n", psf, "\n***\n")
         
         # For each abundence
@@ -306,23 +224,19 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
             sinten = np.interp(rwav, rwav - ishift, rspec)
             rinten.append(sinten)
         region_result.append(RegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
-        
-    return FittedSynthResult(region_result, region_data, wav, synth_data)
+    return region_result
 
-def fit_test(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe", use_default_abund = True, verbose = False):
-    result_good = fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = elem, use_default_abund = use_default_abund, bad_interp = False, verbose = verbose)
-    result_bad = fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = elem, use_default_abund = use_default_abund, bad_interp = True, verbose = verbose)
-    return result_good, result_bad
-
-def synth_spectrum(cfg_file, regions, abund_range, verbose = False):
+def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
     """
-    Synthesizes the spectrum in the given regions for a normal abundance as well as for the given abundance updates.
+    This files synthesizes a spectrum and attempts to fit it to the given observed spectrum.
     """
-    abund_updates = [[[elem, abund]] for abund in abund_range]
-    _check_abund(abund_updates)
+    
+    # Create the updates and check them
+    abund_updates = [au.abund(elem, a) for a in abund_range]
+    au.check_abund(abund_updates)
 
-    # Setup the region data
-    region_data = np.array(regions, dtype = "float64, float64, int32, float64")
+    # Copy the region list and setup an array with the region data
+    regions, region_data = _setup_regions(obs_wav, obs_inten, regions)
 
     # Init LTE class
     s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
@@ -330,23 +244,216 @@ def synth_spectrum(cfg_file, regions, abund_range, verbose = False):
     # Read a model
     m = sp.model(_MODEL_FILE)
     
-    # Add the default
-    abund_updates = [[["Fe", -4.50]]] + abund_updates
-
-    # Synth the lines
-#    synth_data = [_synth(s, m)]
+    # Generate the synthetic lines
     synth_data = []
+    if use_default_abund:
+        abund_updates = au.empty_abund + abund_updates
     for a in abund_updates:
+        # Update the abundence and synthasize a new spectrum
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
 
+    # Get the wavelengths
+    wav = s.getwav()
+    
+    # Fit the regions (kind of... technically this determines how to shift the regions and how well everything then fits)
+    region_result = _fit_regions(regions, wav, synth_data, abund_updates, interp_obs)
+    
     # Return the result
-    return SynthResult(synth_data, s, m, abund_updates, region_data)
+    return SynthResult(region_result, region_data, wav, synth_data)
+    
+class _FitState(object):
+    def __init__(self, reg, s, m, shift, psf, interp_obs, verbose):
+        self.reg = reg
+        self.s = s
+        self.m = m
+        self.shift = shift
+        self.interp_obs = interp_obs
+        self.verbose = verbose
+        self.psf = psf
+        self.rchisq = []
+        self.chisq = []
+        self.rshift = []
+        self.rinten = []
+        
+    def _synth_abund(self, abund):
+        # Update the abundence and synth the line
+        self.s.updateABUND(abund, verbose = self.verbose)
+        spec = _synth(self.s, self.m)[0,0,0,:,0]
+        inten_max = spec.max()
+        spec /= inten_max
+        
+        # Get the wavelengths
+        wav = self.s.getwav()
+        
+        # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
+        rwav, rspec = self.reg.get_contained(wav, spec, left_padding = 1e-9)
+        
+        # Handle errors due to math with floating point numbers
+        if len(rwav) != self.reg.nlambda:
+            print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - self.reg.nlambda, "\n")
+    #                print("*** rwav (len ", len(rwav), "):\n", rwav, "\n*** robs_wav: (len ", len(robs_wav), ")\n", robs_wav, "***\n", sep = "")
+            rwav = rwav[:self.reg.nlambda]
+            rspec = rspec[:self.reg.nlambda]
 
-def synth_range(cfg_file, regions, elem, abund_range, verbose = False):
-    """
-    TODO: DOCUMENT THIS!!!
-    """
-    abund_updates = [[[elem, abund]] for abund in abund_range]
-    return synth_spectrum(cfg_file, regions, abund_updates, verbose = verbose)
+        # Convolve the spectra
+        rspec = _convolve(rspec, self.psf / self.psf.sum())
+    #            print("*** rspec:\n", rspec, "\n***\n")
+        
+        # Get the region of the atlas spectrum
+        robs_wav = self.reg.wav
+        robs_inten = self.reg.inten
 
+        # For each shift
+        rchisq = np.zeros(len(self.shift), dtype = np.float64)
+        for ii in range(len(self.shift)):
+            # Interpolate the synthetic spectrum and shift it a little
+            # IMPORTANT QUESTION: Should I interoplate at "obs_wav" or at "wav"? Example does "wav" but that
+            #                     might not align properly due to inconsistent spacing between the wavelength
+            #                     data points in the atlas data.
+            #                     HOWEVER doing so gives the wrong result... the "best" shift becomes too large. WHY?
+            if self.interp_obs or self.reg.interp_obs:
+                isyn = np.interp(robs_wav, rwav - self.shift[ii], rspec)
+            else:
+                isyn = np.interp(rwav, rwav - self.shift[ii], rspec)
+    #               print("*** isyn: (len ", len(isyn), ")\n", isyn, "\n***\n", sep = "")
+            
+            # Calculate and store the chi squared
+            rchisq[ii] = ((robs_inten - isyn)**2).sum()
+        
+        # Store all the chi squared values
+        self.rchisq.append(rchisq)
+        
+        # Get and store the best shift
+        best_indx = np.argmin(rchisq)
+        self.chisq.append(rchisq[best_indx])
+        ishift = self.shift[best_indx]
+        self.rshift.append(ishift)
+        
+        # Calculate the shifted intensity spectrum (this is done using linear interpolation)
+        sinten = np.interp(rwav, rwav - ishift, rspec)
+        self.rinten.append(sinten)
+        
+        return rchisq[best_indx]
+
+def _fit_region_(s, reg, initial_abunds, elem, m, das, interp_obs, verbose):
+    
+    # Create shifts
+    nshift = reg.nmul*reg.nshift
+    shift = 0.2*(np.arange(nshift) / (nshift - reg.nmul*1.0)) - 0.1
+    
+    # Create the array containing the best shifts
+    rshift = []
+    rinten = []
+    
+    # Create an zeroed array of size (amount-of-abundencies,nshift) to store the chi squared for each abundance and for each shift
+    rchisq = []
+    chisq = []
+    
+    #
+    inten_max = []
+    
+    # Get the region of the atlas spectrum
+    robs_wav = reg.wav
+    robs_inten = reg.inten
+    print("*** Region:", str(reg))
+
+    # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
+    # due to convective motions.
+    # IMPORTANT QUESTIONS:
+    # 1. Where does 1.83 km/s come from?
+    # 2. What's "tw"?
+    # 3. What's the different
+    tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
+#        print("*** tw:\n", tw, "\n***\n")
+    
+    # WHAT IS THIS AND WHAT DOES IT DO???
+    #
+    # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
+    # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
+    # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
+    # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORREdCT?
+    # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
+    # ligh in km/s)
+    psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(reg.lambda_end)/300000.0])
+    
+    # Get the initial abundencies
+    a1 = min(initial_abunds)
+    a2 = max(initial_abunds)
+    
+    # Group together what's constant between calls (THIS IS KIND OF HACKY)
+    state = _FitState(reg, s, m, shift, psf, interp_obs, verbose)
+    
+    # For each abundence
+    chisq1 = state._synth_abund(au.abund(elem, a1))
+    chisq2 = state._synth_abund(au.abund(elem, a2))
+    
+    # Get the direction of the gradient
+    graddir = np.sign(chisq1 - chisq2)
+    if graddir == 0:
+        raise Exception("???")
+    
+    #
+
+#    print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
+    found_it = False
+    prev = (a1, a2)
+#    print("***** All da:", das)
+    for da in das:
+        a1, a2 = prev
+        print("**** NEW a1:", a1, "   a2:", a2, "****")
+#        print("\n*** da:", da, "***\n")
+#        print("a1:", a1, "\na2:", a2, "\n")
+        for iiiii in range(50):
+            # Save the previous set of abundencies and move on to the next ones
+            prev = (a1, a2)
+            if graddir == -1:
+                a1, a2 = a1 - da, a1
+            else:
+                a1, a2 = a2, a2 + da
+            
+            # Calculat chi squared for the two abundencies
+            chisq1 = state._synth_abund(au.abund(elem, a1))
+            chisq2 = state._synth_abund(au.abund(elem, a2))
+#            print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
+#            print("a1:", a1, "\na2:", a2, "\n")
+
+            # If there was a sign change, roll back to the previous a1 and a2 move on to the next da
+            if graddir*(chisq1 - chisq2) < 0:
+                print("**** OLD a1:", a1, "   a2:", a2, "****")
+                found_it = True
+                break
+
+    print("*** graddir:", graddir)
+    
+    if not found_it:
+        print("!!!!!!!!!!!!!!!!!!!!!!!! Found no minimum !!!!!!!!!!!!!!!!!!!!!!!!")
+
+    best_chisq = min(chisq1, chisq2)
+    best_a = a1 if chisq1 < chisq2 else a2
+    return best_chisq, best_a, _FitState
+
+def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, da, elem = "Fe", interp_obs = False, verbose = False):
+    """
+    NEED TO IMPLEMENT THIS PROBLERLY!!! RIGHT NOW IT'S BUGGED!!!
+    """
+    #
+    regions, abunds = zip(*regions)
+    
+    # Make sure all the regions are instances of Region
+    regions = [regs.new_region_from(r, obs_wav, obs_inten) for r in regions]
+    region_data = np.array([r.to_tuple() for r in regions], dtype = "float64, float64, int32, float64")
+    
+    # Init LTE class
+    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
+
+    # Read a model
+    m = sp.model(_MODEL_FILE)
+    
+    if np.isscalar(da):
+        da = [da]
+
+    result = []    
+    for r, a in zip(regions, abunds):
+        result.append(_fit_region_(s, r, a, elem, m, da, interp_obs, verbose))
+    return result

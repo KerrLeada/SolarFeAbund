@@ -10,13 +10,31 @@ import numpy as np
 import satlas as sa
 
 """
-IDEAS FOR REGION:
-Region(select(start_wav, end_wav, wav, inten), lambda w: w[1] - w[0])
-Region(select(start_wav, end_wav, wav, inten), lambda w: w[1] - w[0])
-Region(atlas(start_wav, end_wav), lambda w: w[1] - w[0])
+class _RegionBase
+    lambda0
+    lambda_end
+    dlambda
+    nlambda
+    scale_factor
+    def as_tuple(self):
+        ...
+    def get_contained(self, wav, inten):
+        ...
+
+class AtlasRegion(_RegionBase)
+    def get_data(self, atlas, obs_data):
+        uses the atlas to get the data
+
+class BlahRegion(_RegionBase)
+    def get_data(self, atlas, obs_data):
+        uses obs_data to get the data
 """
 
 def _require_positive_int(obj, name):
+    """
+    Checks so obj is a positive integer, and throws an exception if it's not. The name of the object can
+    be set with name.
+    """
     if not isinstance(obj, int):
         raise Exception(name +  " must be an int greater then 0, but it was a " + type(obj).__name__)
     elif obj < 1:
@@ -65,10 +83,6 @@ class Region(object):
             self.nmul = nmul
         else:
             self.nmul = 1
-            
-        
-#        if self.lambda0 + self.dlambda*self.nlambda > self.lambda_end:
-#            print("?????? ", self.lambda0 + self.dlambda*self.nlambda, " ?? ", self.lambda_end)
     
     def to_tuple(self):
         """
@@ -150,6 +164,11 @@ def new_region(obs_wav, obs_inten, lambda0, dlambda, nlambda, scale_factor = 1.0
         raise Exception("The observed data had a length " + str(len(obs_wav)) + " while nlambda was " + str(nlambda) + ". They must match.")
     return Region(lambda0, obs_wav, obs_inten, dlambda, nlambda, scale_factor = scale_factor, interp_obs = interp_obs, nshift = nmul, nmul = nmul)
 
+def new_region_from(obj, obs_wav, obs_inten):
+    if not isinstance(obj, Region):
+        obj = new_region(obs_wav, obs_inten, *obj)
+    return obj
+
 def get_nlambda(region):
     """
     Returns the amount of steps in a region. The region can be a Region object or a tuple of the form:
@@ -182,78 +201,14 @@ def region(lambda0, dlambda, nlambda, scale_factor = 1.0):
     """
     return (lambda0, dlambda, nlambda, scale_factor)
 
-#def region_in(lambda_0, lambda_end, wl, scale_factor, dlambda_fn = None):
-#    wav = wl[(lambda_0 <= wl) & (wl <= lambda_end)]
-#    nlambda = len(wav)
-#    dlambda = wav[1] - wav[0] if not dlambda_fn else dlambda_fn(wav, nlambda)
-#    return region(lambda_0, dlambda, nlambda, scale_factor)
-
-#def region_start(region):
-#    """
-#    Returns the starting point of the region. Since the starting point of the region
-#    is the first element, this is equivalent to: region[0]
-#    """
-#    if isinstance(region, Region):
-#        return region.lambda0
-#    return region[0]
-
-#def region_end(region):
-#    """
-#    Calculates the end point of the given region. Specifically, the given region
-#    is a tuple where the elements are
-#        (lambda0, dlambda, nlambda, scale_factor)
-#    The end point wavelength is calculated as: lambda_0 + dlambda*nlambda
-#    """
-#    if not isinstance(region, Region):
-#        lambda0, dlambda, nlambda = region[0], region[1], region[2]
-#        return lambda0 + dlambda*nlambda
-#    return region.lambda_end
-
-#def region_length(region):
-#    """
-#    Calculates the length of the given region. If the region is
-#        (lambda0, dlambda, nlambda, scale_factor)
-#    then the region length is: dlambda*nlambda
-#    """
-#    if not isinstance(region, Region):
-#        dlambda, nlambda = region[1], region[2]
-#        return dlambda*nlambda
-#    return region.length
-
-#def get_region(reg, wav, inten, left_padding = 0.0, right_padding = 0.0):
-#    """
-#    Returns the wav and inten values contained in the given region reg. Specifically
-#    two arrays are returned. The first is the wavelengths wav contained in the region
-#    and the second is the corresponding intensities inten.
-#    
-#    The padding paramters, left_padding and right_padding, allows pushing the bounderies of
-#    the region on the left (lower then minimum) side and right (higher then maximum) respectively.
-#    Specifically, for a given value of padding, the start of the region is given by
-#        region_start(region) - padding_left
-#    while the end is given by
-#        ragion_end(region) + padding_right
-#    The default value of both the padding parameters is 0.
-#    """
-#    rs = region_start(reg) - left_padding
-#    re = region_end(reg) + right_padding
-#    interval = (rs <= wav) & (wav <= re)
-#    return wav[interval], inten[interval]
-
 def get_within(lambda0, lambda_end, wav, inten, left_padding = 0.0, right_padding = 0.0):
+    """
+    Returns the elements in wav what are between lambda0 and lambda_end. The corresponding inten elements
+    are returned as well.
+    """
     interval = (lambda0 - left_padding <= wav) & (wav <= lambda_end + right_padding)
     return wav[interval], inten[interval]
 
-#def get_region_N(reg, wav, intensities):
-#    rs = region_start(reg)
-#    re = region_end(reg)
-#    interval = (rs <= wav) & (wav <= re)
-#    intens = [inten[interval] for inten in intensities]
-#    return wav[interval], intens
-
-#def get_interval(reg, wav, padding = 0.0):
-#    rs = region_start(reg) - padding
-#    re = region_end(reg) + padding
-#    return (rs <= wav) & (wav <= re)
 
 def _best_dlambda(wav0, length, nlambda, obs_wav):
     dlambda = []

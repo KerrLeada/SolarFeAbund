@@ -14,14 +14,20 @@ import fitting
 import astropy.constants
 import astropy.units
 import synther
-from abundutils import abund
+import abundutils as au
+
+#raise Exception("Ask about why the amount of regions affects the result!")
 
 # Used to quickly switch code
 _MODE = 0
 _MODE_FIT_BEST_SPACING = True
 _MODE_INTERP_OBS = False
-_MODE_SHOW_PLOTS = True
+_MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
+_MODE_USE_SEEKING = False
+
+#
+initial_abunds = None
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
@@ -119,14 +125,19 @@ else:
 #            regs.new_region_in(at, , , interp_obs = False),
 
             # Line at: 6739.5 or 6739.51 or 6739.52 (maybe: 6739.48 to 6739.53)
-            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
             
             # **** STRONG LINES ****
             # Line at: 5232.93 or 5232.94 or 5232.95
             # CANDIDATES:
             #    dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1])      <---- shift 0.002
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift 0.004   (best chi squared)
-            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1]), interp_obs = False),
+        ]
+        initial_abunds = [
+            (-4.5, -4.55),
+            (-4.5, -4.45),
+            (-4.5, -4.45),
         ]
 
 # Get the continuum and normalized intensity
@@ -134,33 +145,21 @@ cont = cont_atlas[0]
 inten = inten_raw / inten_raw.max()
 
 def _print_regions(regions):
+    """
+    Prints the regions
+    """
     print("*** REGIONS ***")
     for r in regions:
         print(r)
     print("*** END REGIONS ***")
 _print_regions(regions)
 
-if _MODE in {1, 2, 3}:
-    print("GENERATING REGIONS WITH: create_regions_in" + str(_MODE))
-elif _MODE == -1:
-    print("REGIONS AND EVERYTHING COPIED FROM testshift.py")
-else:
-    print("REGIONS SPECIFIED MANALLY!!!")
-
 # Create the abundencies (default not included)
-abunds = [-4.4, -4.42, -4.45, -4.48, -4.52, -4.55, -4.58, -4.6]
+#abunds = []
+#abunds = [-4.4, -4.42, -4.45, -4.48, -4.52, -4.55, -4.58, -4.6]
+abunds = -np.arange(4.1, 4.9, step = 0.001)
 
-# Synth the spectrum and attempt to fit it to the observed data
-result = synther.fit_spectrum(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
-
-def _calc_vel(delta_lambda, lambda_em):
-    """
-    Calculates the velocity that corresponds to a doppler shift
-    with a given shift delta_lambda and an emitted wavelength lambda_em.
-    """
-    return delta_lambda*300000.0/lambda_em
-
-def _print_shifts():
+def print_shifts(show_all = True):
     for r in result.region_result:
         print("Region:", str(r.region))
         for a, s, c2, ainten in zip(r.abund, r.shift, r.chisq, r.inten):
@@ -169,12 +168,41 @@ def _print_shifts():
             print("    Abund:", a)
             print("    Shift:", s)
             print("    Chisq:", c2)
-            print("    Doppler velocity:", _calc_vel(s, line_wav_em), "km/s")
-            print("    Unshifted line max wavelength:", line_wav_em, "Angstrom")
-            print("    Shifted line max wavelength:  ", line_wav, "Angstrom\n")
+            if show_all:
+                print("    Doppler velocity:", _calc_vel(s, line_wav_em), "km/s")
+                print("    Unshifted line max wavelength:", line_wav_em, "Angstrom")
+                print("    Shifted line max wavelength:  ", line_wav, "Angstrom")
+            print("")
         print("")
+
+# Synth the spectrum and attempt to fit it to the observed data
+result = synther.fit_spectrum(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
 print("REGION LEN:", reg_length)
-_print_shifts()
+print_shifts(show_all = False)
+
+if _MODE_USE_SEEKING and initial_abunds:
+    regions_abunds = zip(regions, initial_abunds)
+    result2 = synther.fit_spectrum2(CFG_FILE, wl, inten, regions_abunds, [0.01, 0.001, 0.0001], verbose = True)
+    print(result2)
+
+def _calc_vel(delta_lambda, lambda_em):
+    """
+    Calculates the velocity that corresponds to a doppler shift
+    with a given shift delta_lambda and an emitted wavelength lambda_em.
+    """
+    return delta_lambda*300000.0/lambda_em
+
+def print_best():
+    best_abunds = []
+    for r in result.region_result:
+        print("Region:", r.region)
+        print("    Best chisq:", r.best_chisq)
+        print("    Best shift:", r.best_shift)
+        print("    Best abund:", r.best_abund)
+        print("")
+        best_abunds.append(au.get_value(r.best_abund))
+    print("Mean abund:", np.mean(best_abunds))
+    print("*** ", best_abunds)
 
 print("FIX THE FITTING PROBLEM!!! SOMETIMES THE SHIFT DEPENDS ON OTHER LINES THEN THE ONE IN QUESTION, WHICH SHOULD NOT HAPPEN!!!\n*********\n")
 if _MODE in {1, 2, 3}:
@@ -192,17 +220,20 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
-def _plot_region(region_nr, show_observed = True, show_unshifted = True):
-    # Set the title to display the region number, the mode and if the spacing between the datapoints in the synth region was fitted
-    plt.title("Region: " + str(region_nr) +
-              "   Mode: " + str(_MODE) +
-#              "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
-              "   Interp obs: " + str(_MODE_INTERP_OBS) +
-              "   Reg len: " + str(reg_length))
-
-    
-    # Setup the color list and get the region
+def plot_region(region_nr, show_observed = True, show_unshifted = True):
+    # Get the region
     region_result = result.region_result[region_nr]
+    
+    # Set the title to display the region number, the mode and if the spacing between the datapoints in the synth region was fitted
+    plt.title("Nr: " + str(region_nr) + 
+              "  Interval: " + str((region_result.region.lambda0, round(region_result.region.lambda_end, 4))) +
+              "  delta: " + str(region_result.region.dlambda) +
+              "  steps: " + str(region_result.region.nlambda) +
+              "  scale: " + str(region_result.region.scale_factor))
+#              "   Mode: " + str(_MODE) +
+#              "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
+#              "   Interp obs: " + str(_MODE_INTERP_OBS) +
+#              "   Region nr: " + str(region_nr))
 
     # Show the observed spectrum
     if show_observed:
@@ -223,9 +254,8 @@ def _plot_region(region_nr, show_observed = True, show_unshifted = True):
     
     # Show the plot
     plt.show()
-#_plot_region(0)
 
-def _plot_spec(show_observed = True, show_unshifted = True):
+def plot_spec(show_observed = True, show_unshifted = True):
     # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
     plt.title("Mode: " + str(_MODE) +
  #             "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
@@ -254,9 +284,16 @@ def _plot_spec(show_observed = True, show_unshifted = True):
             plt.plot(r.wav, r.inten[a], color = plot_color_list[a % len(plot_color_list)])
     plt.show()
 
+def plot_chisq(region_nr):
+    r = result.region_result[region_nr]
+    a = au.list_abund(r.abund, default_val = -4.5)
+    chi2 = r.chisq
+    plt.plot(a, chi2)
+    plt.show()
+
 if _MODE_SHOW_PLOTS:
-#    _plot_region(-1, show_unshifted = _MODE_SHOW_UNSHIFTED)
-    _plot_spec(show_unshifted = _MODE_SHOW_UNSHIFTED)
+#    plot_region(-1, show_unshifted = _MODE_SHOW_UNSHIFTED)
+    plot_spec(show_unshifted = _MODE_SHOW_UNSHIFTED)
 
 def countpts(lambda0, lambda_end, wav = None):
     """

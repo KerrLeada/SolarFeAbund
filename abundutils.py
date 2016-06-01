@@ -2,12 +2,46 @@
 This module contains helper functions for dealing with abundencies.
 """
 
+import numpy as np
+
+empty_abund = [[]]
+
 def abund(elem, abundency):
     """
     Returns an new abundance for the element. The data is in the form
     of [[elem, abundency]].
     """
     return [[elem, abundency]]
+
+def list_abund(abund, default_val = None):
+    """
+    Returns a list of the abundence values, assuming that only one element is updated every time.
+    Ignores the default abundance.
+    """
+    abund_vals = np.zeros(len(abund), dtype = np.float64)
+    for i, a in enumerate(abund):
+        if len(a) == 0:
+            if default_val == None:
+                raise Exception("The default abundence was found but no default value to use was given")
+            abund_vals[i] = default_val
+        elif len(a) == 1:
+            abund_vals[i] = a[0][1]
+        else:
+            raise Exception("There must only be one updated abundence")
+    return abund_vals
+
+def get_value(abund):
+    """
+    Gets the first abundence value. Any other are ignored.
+    """
+    return abund[0][1]
+
+def unpack_abund(abund):
+    """
+    Unpacks the abundencies in abund into a list of element names and a list of corresponding abundency values.
+    Returns both lists, first the element names and then the abundency values.
+    """
+    return zip(*abund)
 
 def check_abund(abund):
     """
