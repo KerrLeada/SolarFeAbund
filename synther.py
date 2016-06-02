@@ -115,12 +115,21 @@ def _setup_regions(obs_wav, obs_inten, regions):
     region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
     region_list = list(regions)
     for ri in range(len(regions)):
-        if isinstance(regions[ri], tuple):
-            region_data[ri] = regions[ri]
-            regions[ri] = regs.new_region(obs_wav, obs_inten, *regions[ri])
-        else:
-            print(regions[ri].to_tuple())
+        if isinstance(regions[ri], regs.Region):
             region_data[ri] = regions[ri].to_tuple()
+        else:
+            try:
+                region_data[ri] = regions[ri]
+            except TypeError:
+                err_msg = ("The given region was not in an acceptable tuple-like or Region form, and was of type " + type(region[ri]).__name__ +
+                           ". Make sure the region has type Region or is a tuple-like object with 4 elements, of which the first, " +
+                           "second and fourth is of type numpy.float64, and the third element has type numpy.int32. Normal floats and inte can also be used.")
+                raise TypeError(err_msg)
+            except ValueError:
+                err_msg = ("The given tuple-like region was not in an acceptable form. It should have 4 elements of which the first, second " +
+                           "and fourth are of type numpy.float64 while the third is of type numpy.int32. Normal floats and inte can also be used.")
+                raise ValueError(err_msg)
+            region_list[ri] = regs.new_region(obs_wav, obs_inten, *regions[ri])
     return region_list, region_data
 
 def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
@@ -177,6 +186,8 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
 #        print("*** gaussian:\n", psf, "\n***\n")
         
         # For each abundence
+        rwav_all = []
+        rspec_all = []
         for a, spec in enumerate(synth_data):
             #
             spec = spec[0,0,0,:,0]
@@ -198,6 +209,10 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
             rspec = _convolve(rspec, psf / psf.sum())
 #            print("*** rspec:\n", rspec, "\n***\n")
         
+            # Store for later calculations
+            rwav_all.append(rwav)
+            rspec_all.append(rspec)
+        
             # For each shift
             for ii in range(nshift):
                 # Interpolate the synthetic spectrum and shift it a little
@@ -215,14 +230,24 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
                 rchisq[a,ii] = ((robs_inten - isyn)**2).sum()
             
             # Get and store the best shift
-            best_indx = np.argmin(rchisq[a,:])
-            chisq[a] = rchisq[a,best_indx]
-            ishift = shift[best_indx]
+#            best_indx = np.argmin(rchisq[a,:])
+#            chisq[a] = rchisq[a,best_indx]
+            ishift = shift[np.argmin(rchisq[a,:])]
             rshift[a] = ishift
             
             # Calculate the shifted intensity spectrum (this is done using linear interpolation)
             sinten = np.interp(rwav, rwav - ishift, rspec)
             rinten.append(sinten)
+
+        # Calculate the chi squared for each abundence, for the best shift
+        for a, (rwav, rspec) in enumerate(zip(rwav_all, rspec_all)):
+            if interp_obs or r.interp_obs:
+                isyn = np.interp(robs_wav, rwav - rshift[a], rspec)
+            else:
+                isyn = np.interp(rwav, rwav - rshift[a], rspec)
+            chisq[a] = ((robs_inten - isyn)**2).sum()
+        
+        #
         region_result.append(RegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
     return region_result
 
@@ -263,18 +288,46 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     return SynthResult(region_result, region_data, wav, synth_data)
     
 class _FitState(object):
-    def __init__(self, reg, s, m, shift, psf, interp_obs, verbose):
+    def __init__(self, reg, s, m, iteration_limit, interp_obs, verbose):
+        # Store the region, synth and model objects
         self.reg = reg
         self.s = s
         self.m = m
-        self.shift = shift
-        self.interp_obs = interp_obs
-        self.verbose = verbose
-        self.psf = psf
+        self.iteration_limit = iteration_limit
+        
+        # Create shifts
+        self.nshift = reg.nmul*reg.nshift
+        self.shift = 0.2*(np.arange(self.nshift) / (self.nshift - reg.nmul*1.0)) - 0.1
+        
+        # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
+        # due to convective motions.
+        # IMPORTANT QUESTIONS:
+        # 1. Where does 1.83 km/s come from?
+        # 2. What's "tw"?
+        # 3. What's the different
+        self.tw = (np.arange(15)-7)*(reg.wav[1] - reg.wav[0])
+    #        print("*** tw:\n", tw, "\n***\n")
+        
+        # WHAT IS THIS AND WHAT DOES IT DO???
+        #
+        # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
+        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
+        # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
+        # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORREdCT?
+        # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
+        # ligh in km/s)
+        self.psf = _gaussian(self.tw, [1.0, 0.0, 1.83*np.ceil(reg.lambda_end)/300000.0])
+        
+        # Initialize some lists
         self.rchisq = []
         self.chisq = []
         self.rshift = []
         self.rinten = []
+        self.inten_max = []
+        
+        # Store extra options
+        self.interp_obs = interp_obs
+        self.verbose = verbose
         
     def _synth_abund(self, abund):
         # Update the abundence and synth the line
@@ -282,6 +335,7 @@ class _FitState(object):
         spec = _synth(self.s, self.m)[0,0,0,:,0]
         inten_max = spec.max()
         spec /= inten_max
+        self.inten_max.append(inten_max)
         
         # Get the wavelengths
         wav = self.s.getwav()
@@ -336,109 +390,77 @@ class _FitState(object):
         
         return rchisq[best_indx]
 
-def _fit_region_(s, reg, initial_abunds, elem, m, das, interp_obs, verbose):
-    
-    # Create shifts
-    nshift = reg.nmul*reg.nshift
-    shift = 0.2*(np.arange(nshift) / (nshift - reg.nmul*1.0)) - 0.1
-    
-    # Create the array containing the best shifts
-    rshift = []
-    rinten = []
-    
-    # Create an zeroed array of size (amount-of-abundencies,nshift) to store the chi squared for each abundance and for each shift
-    rchisq = []
-    chisq = []
-    
-    #
-    inten_max = []
-    
-    # Get the region of the atlas spectrum
-    robs_wav = reg.wav
-    robs_inten = reg.inten
-    print("*** Region:", str(reg))
+    def fit(self, initial_abunds, elem, das):
+        
+        # Create the array containing the best shifts
+        rshift = []
+        rinten = []
+        
+        # Create an zeroed array of size (amount-of-abundencies,nshift) to store the chi squared for each abundance and for each shift
+        rchisq = []
+        chisq = []
+        
+        # Get the region of the atlas spectrum
+        robs_wav = self.reg.wav
+        robs_inten = self.reg.inten
+        
+        # Get the initial abundencies
+        a1 = min(initial_abunds)
+        a2 = max(initial_abunds)
+        
+        # For each abundence
+        chisq1 = self._synth_abund(au.abund(elem, a1))
+        chisq2 = self._synth_abund(au.abund(elem, a2))
+        
+        # Get the direction of the gradient
+        graddir = np.sign(chisq1 - chisq2)
+        if graddir == 0:
+            raise Exception("???")
+        
+        #
 
-    # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
-    # due to convective motions.
-    # IMPORTANT QUESTIONS:
-    # 1. Where does 1.83 km/s come from?
-    # 2. What's "tw"?
-    # 3. What's the different
-    tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-#        print("*** tw:\n", tw, "\n***\n")
-    
-    # WHAT IS THIS AND WHAT DOES IT DO???
-    #
-    # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
-    # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
-    # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
-    # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORREdCT?
-    # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
-    # ligh in km/s)
-    psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(reg.lambda_end)/300000.0])
-    
-    # Get the initial abundencies
-    a1 = min(initial_abunds)
-    a2 = max(initial_abunds)
-    
-    # Group together what's constant between calls (THIS IS KIND OF HACKY)
-    state = _FitState(reg, s, m, shift, psf, interp_obs, verbose)
-    
-    # For each abundence
-    chisq1 = state._synth_abund(au.abund(elem, a1))
-    chisq2 = state._synth_abund(au.abund(elem, a2))
-    
-    # Get the direction of the gradient
-    graddir = np.sign(chisq1 - chisq2)
-    if graddir == 0:
-        raise Exception("???")
-    
-    #
+    #    print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
+        found_it = False
+        prev = (a1, a2)
+    #    print("***** All da:", das)
+        for da in das:
+            a1, a2 = prev
+            print("**** NEW a1:", a1, "   a2:", a2, "****")
+    #        print("\n*** da:", da, "***\n")
+    #        print("a1:", a1, "\na2:", a2, "\n")
+            for iiiii in range(self.iteration_limit):
+                # Save the previous set of abundencies and move on to the next ones
+                prev = (a1, a2)
+                if graddir == -1:
+                    a1, a2 = a1 - da, a1
+                else:
+                    a1, a2 = a2, a2 + da
+                
+                # Calculat chi squared for the two abundencies
+                chisq1 = self._synth_abund(au.abund(elem, a1))
+                chisq2 = self._synth_abund(au.abund(elem, a2))
+    #            print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
+    #            print("a1:", a1, "\na2:", a2, "\n")
 
-#    print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
-    found_it = False
-    prev = (a1, a2)
-#    print("***** All da:", das)
-    for da in das:
-        a1, a2 = prev
-        print("**** NEW a1:", a1, "   a2:", a2, "****")
-#        print("\n*** da:", da, "***\n")
-#        print("a1:", a1, "\na2:", a2, "\n")
-        for iiiii in range(50):
-            # Save the previous set of abundencies and move on to the next ones
-            prev = (a1, a2)
-            if graddir == -1:
-                a1, a2 = a1 - da, a1
-            else:
-                a1, a2 = a2, a2 + da
-            
-            # Calculat chi squared for the two abundencies
-            chisq1 = state._synth_abund(au.abund(elem, a1))
-            chisq2 = state._synth_abund(au.abund(elem, a2))
-#            print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
-#            print("a1:", a1, "\na2:", a2, "\n")
+                # If there was a sign change, roll back to the previous a1 and a2 move on to the next da
+                if graddir*(chisq1 - chisq2) < 0:
+                    print("**** OLD a1:", a1, "   a2:", a2, "****")
+                    found_it = True
+                    break
 
-            # If there was a sign change, roll back to the previous a1 and a2 move on to the next da
-            if graddir*(chisq1 - chisq2) < 0:
-                print("**** OLD a1:", a1, "   a2:", a2, "****")
-                found_it = True
-                break
+        print("*** graddir:", graddir)
+        
+        if not found_it:
+            print("!!!!!!!!!!!!!!!!!!!!!!!! Found no minimum !!!!!!!!!!!!!!!!!!!!!!!!")
 
-    print("*** graddir:", graddir)
-    
-    if not found_it:
-        print("!!!!!!!!!!!!!!!!!!!!!!!! Found no minimum !!!!!!!!!!!!!!!!!!!!!!!!")
+        best_chisq = min(chisq1, chisq2)
+        best_a = a1 if chisq1 < chisq2 else a2
+        return best_chisq, best_a
 
-    best_chisq = min(chisq1, chisq2)
-    best_a = a1 if chisq1 < chisq2 else a2
-    return best_chisq, best_a, _FitState
-
-def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, da, elem = "Fe", interp_obs = False, verbose = False):
+def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, abunds, da, elem = "Fe", interation_limit = 50, interp_obs = False, verbose = False):
     """
     NEED TO IMPLEMENT THIS PROBLERLY!!! RIGHT NOW IT'S BUGGED!!!
     """
-    #
-    regions, abunds = zip(*regions)
     
     # Make sure all the regions are instances of Region
     regions = [regs.new_region_from(r, obs_wav, obs_inten) for r in regions]
@@ -450,10 +472,15 @@ def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, da, elem = "Fe", interp
     # Read a model
     m = sp.model(_MODEL_FILE)
     
+    # Make sure da is a list of changes to the abundance
     if np.isscalar(da):
         da = [da]
+    else:
+        da = list(da)
 
-    result = []    
+    # Loop through each region
+    result = []
     for r, a in zip(regions, abunds):
-        result.append(_fit_region_(s, r, a, elem, m, da, interp_obs, verbose))
+        fs = _FitState(r, s, m, iteration_limit, interp_obs, verbose)
+        result.append((fs.fit(a, elem, da), fs))
     return result

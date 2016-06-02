@@ -133,6 +133,15 @@ else:
             #    dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1])      <---- shift 0.002
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift 0.004   (best chi squared)
             regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 4957.29 or 4957.3 or 4957.31
+            regs.new_region_in(at, 4957.3 - 1.5, 4957.3 + 1.5, interp_obs = False),
+            
+            # Line at: 4890.74 or 4890.75 or 4890.76 or 4890.77
+            # Regarding dlambda: The synthetic line should be shifted to the left, towards lower wavelengths. If dlambda is the mean wavelength difference
+            # or higher the synthetic line is shifted towards the right (higher wavelengths). Meanwhile, if dlambda is the minimum wavelength difference
+            # it is shifted too much to the left. As such, we can conclude that dlambda should be between the minimum and the mean wavelength difference.
+            regs.new_region_in(at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
         ]
         initial_abunds = [
             (-4.5, -4.55),
@@ -156,8 +165,8 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-#abunds = [-4.4, -4.42, -4.45, -4.48, -4.52, -4.55, -4.58, -4.6]
-abunds = -np.arange(4.1, 4.9, step = 0.001)
+#abunds = [-4.4, -4.45, -4.55, -4.6]
+abunds = -np.arange(4.1, 4.9, step = 0.002)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -181,8 +190,10 @@ print("REGION LEN:", reg_length)
 print_shifts(show_all = False)
 
 if _MODE_USE_SEEKING and initial_abunds:
-    regions_abunds = zip(regions, initial_abunds)
-    result2 = synther.fit_spectrum2(CFG_FILE, wl, inten, regions_abunds, [0.01, 0.001, 0.0001], verbose = True)
+    print("\n**********************")
+    print("**** SEEKING MODE ****")
+    print("**********************\n")
+    result2 = synther.fit_spectrum2(CFG_FILE, wl, inten, regions, initial_abunds, [0.01, 0.001, 0.0001], verbose = True)
     print(result2)
 
 def _calc_vel(delta_lambda, lambda_em):
@@ -247,7 +258,7 @@ def plot_region(region_nr, show_observed = True, show_unshifted = True):
     for a in range(region_result.inten.shape[0]):
         # Unshifted
         if show_unshifted:
-            plt.plot(region_result.wav + region_result.shift[a], region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.5)
+            plt.plot(region_result.wav + region_result.shift[a], region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.25, linestyle = "--")
         
         # Shifted
         plt.plot(region_result.wav, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)])
@@ -278,7 +289,7 @@ def plot_spec(show_observed = True, show_unshifted = True):
         for a in range(r.inten.shape[0]):
             # Unshifted
             if show_unshifted:
-                plt.plot(r.wav + r.shift[a], r.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.5)
+                plt.plot(r.wav + r.shift[a], r.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.25, linestyle = "--")
             
             # Shifted
             plt.plot(r.wav, r.inten[a], color = plot_color_list[a % len(plot_color_list)])
