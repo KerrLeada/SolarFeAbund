@@ -17,6 +17,7 @@ import sparsetools as sp
 import fitting
 import regions as regs
 import abundutils as au
+import multiprocessing as mp
 
 _MODEL_FILE = "data/falc_filled.nc"
 
@@ -92,6 +93,9 @@ class RegionResult(object):
         self.best_shift = shift[i]
         self.best_chisq = chisq[i]
         self.best_abund = abund[i]
+    
+    def fuse_result(self, other):
+        return RegionResult(self.region, self.wav, self.inten + other.inten, self.shift + other.shift, self.chisq + other.chisq, self.shift_all + other.shift_all, self.chisq_all + other.chisq_all, self.inten_norm_factor, self.abund + other.abund)
 
 class SynthResult(object):
     """
@@ -103,6 +107,22 @@ class SynthResult(object):
         self.region_data = region_data
         self.wav = wav
         self.raw_synth_data = raw_synth_data
+    
+    def fuse_result(self, other):
+        # Fuse the region results
+        region_result = []
+        for r1, r2 in zip(self.region_result, other.region_result):
+            region_result.append(r1.fuse_result(r2))
+        if len(self.region_result) > len(other.region_result):
+            region_result.extend(self.region_result[len(other.region_result):])
+        elif len(self.region_result) < len(other.region_result):
+            region_result.extend(other.region_result[len(self.region_result):])
+            
+        #
+        raw_synth_data = self.raw_synth_data + other.raw_synth_data
+        
+        #
+        return SynthResult(region_result, self.region_data, self.wav, raw_synth_data)
 
 def _synth(s, m):
     """
@@ -181,7 +201,7 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
         # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
-        psf = _gaussian(tw, [1.0, 0.0, 1.83*np.ceil(r.lambda_end)/300000.0])
+        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
 #        psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.0])
 #        print("*** gaussian:\n", psf, "\n***\n")
         
@@ -192,7 +212,6 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
             #
             spec = spec[0,0,0,:,0]
             inten_max[a] = spec.max()
-            spec /= inten_max[a]
             
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
             rwav, rspec = r.get_contained(wav, spec, left_padding = 1e-9)
@@ -206,8 +225,10 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
                 rspec = rspec[:nlambda]
 
             # Convolve the spectra
+#            print("*** rspec max (before):", rspec.max(), "***\n")
             rspec = _convolve(rspec, psf / psf.sum())
-#            print("*** rspec:\n", rspec, "\n***\n")
+            rspec /= rspec.max()
+#            print("*** rspec max (after): ", rspec.max(), "***\n")
         
             # Store for later calculations
             rwav_all.append(rwav)
@@ -286,6 +307,60 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
+
+def _parallel_fit(conn, cfg_file, obs_wav, obs_inten, regions, abunds, elem, use_default_abund, interp_obs, verbose):
+    print(abunds)
+    try:
+        result = fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abunds, elem, use_default_abund, interp_obs, verbose)
+        conn.send(result)
+    except:
+        conn.send(None)
+    finally:
+        conn.close()
+
+# JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
+_EVIL = None
+
+def fit_spectrum_para(cfg_file, obs_wav, obs_inten, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
+    # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
+    global _EVIL
+    
+    # Split up the abundencies between processes
+    abund_range = list(abund_range)
+    abunds = [[]]*processes
+    abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
+    for i in range(processes):
+        si = i*abunds_per_process
+        ei = (i + 1)*abunds_per_process
+        abunds[i].extend(abund_range[si:ei])
+
+    # Spawn the processes
+    proc_list = []
+    conns = []
+    for a in abunds:
+        rec, conn = mp.Pipe()
+        p = mp.Process(target = _parallel_fit, args = (conn, cfg_file, obs_wav, obs_inten, regions, a, elem, use_default_abund, interp_obs, verbose))
+        p.start()
+        proc_list.append(p)
+        conns.append(rec)
+    
+    # Join the processes
+    result_list = []
+    for rec, p in zip(conns, proc_list):
+        result_list.append(rec.recv())
+        rec.close()
+        p.join()
+    
+    # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
+    _EVIL = result_list
+    
+    # Fuse the result together
+    result = result_list[0]
+    for r in result_list[1:]:
+        result = result.fuse_result(r)
+    
+    # Return the fused result    
+    return result
     
 class _FitState(object):
     def __init__(self, reg, s, m, iteration_limit, interp_obs, verbose):

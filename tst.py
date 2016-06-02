@@ -15,6 +15,7 @@ import astropy.constants
 import astropy.units
 import synther
 import abundutils as au
+import bisect
 
 #raise Exception("Ask about why the amount of regions affects the result!")
 
@@ -93,7 +94,7 @@ else:
             #    6302.25 to 6302.75, gives shift of 0.004, cannot see much difference compared to the current
             #    interval 6302.25 to 6302.75. The chi squared is however higher for all abundencies, so it might
             #    just be worse.
-            regs.new_region_in(at, 6302.25, 6302.75, interp_obs = False),
+            regs.new_region_in(at, 6302.3, 6302.7, interp_obs = False),
             
             # Line at: [6219.27] or 6219.28
             # CANDIDATES:
@@ -109,7 +110,7 @@ else:
             
             # Line at: 6481.85 or 6481.86 or [6481.87] (maybe: 6481.8 to 6481.9)
             # (CAN MAYBE CHANGE WAVELENGTH A LITTLE)
-            regs.new_region_in(at, 6481.87 - 0.3, 6481.87 + 0.3, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 6481.87 - 0.25, 6481.87 + 0.25, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 6498.93 or 6498.94 (maybe: 6498.9 to 6498.97)
             # Currently we get a shift of about: 0.004 Å
@@ -126,6 +127,9 @@ else:
 
             # Line at: 6739.5 or 6739.51 or 6739.52 (maybe: 6739.48 to 6739.53)
 #            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 5329.98 or 5329.98
+            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # **** STRONG LINES ****
             # Line at: 5232.93 or 5232.94 or 5232.95
@@ -165,8 +169,8 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-#abunds = [-4.4, -4.45, -4.55, -4.6]
-abunds = -np.arange(4.1, 4.9, step = 0.002)
+#abunds = [-4.4, -4.45] #, -4.55, -4.6]
+abunds = -np.arange(4.1, 4.8, step = 0.001)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -185,7 +189,10 @@ def print_shifts(show_all = True):
         print("")
 
 # Synth the spectrum and attempt to fit it to the observed data
-result = synther.fit_spectrum(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
+time_start = time.time()
+result = synther.fit_spectrum_para(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
+time_end = time.time()
+
 print("REGION LEN:", reg_length)
 print_shifts(show_all = False)
 
@@ -211,7 +218,8 @@ def print_best():
         print("    Best shift:", r.best_shift)
         print("    Best abund:", r.best_abund)
         print("")
-        best_abunds.append(au.get_value(r.best_abund))
+        if r.best_abund != []:
+            best_abunds.append(au.get_value(r.best_abund))
     print("Mean abund:", np.mean(best_abunds))
     print("*** ", best_abunds)
 
@@ -231,7 +239,7 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
-def plot_region(region_nr, show_observed = True, show_unshifted = True):
+def plot_region(region_nr, show_observed = True, show_unshifted = False):
     # Get the region
     region_result = result.region_result[region_nr]
     
@@ -246,14 +254,6 @@ def plot_region(region_nr, show_observed = True, show_unshifted = True):
 #              "   Interp obs: " + str(_MODE_INTERP_OBS) +
 #              "   Region nr: " + str(region_nr))
 
-    # Show the observed spectrum
-    if show_observed:
-        # Get the observed spectrum contained in the region
-        rwav, rinten = region_result.region.get_contained(wl, inten)
-        
-        # Plot the spectrum, followed by the synth lines
-        plt.plot(rwav, rinten, color = "blue")
-
     # Plot the synthetic spectrum
     for a in range(region_result.inten.shape[0]):
         # Unshifted
@@ -263,10 +263,20 @@ def plot_region(region_nr, show_observed = True, show_unshifted = True):
         # Shifted
         plt.plot(region_result.wav, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)])
     
+    # Show the observed spectrum
+    if show_observed:
+        # Get the observed spectrum contained in the region
+#        rwav, rinten = region_result.region.get_contained(wl, inten)
+        rwav = region_result.region.wav
+        rinten = region_result.region.inten
+        
+        # Plot the spectrum, followed by the synth lines
+        plt.plot(rwav, rinten, color = "blue")
+    
     # Show the plot
     plt.show()
 
-def plot_spec(show_observed = True, show_unshifted = True):
+def plot_spec(show_observed = True, show_unshifted = False):
     # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
     plt.title("Mode: " + str(_MODE) +
  #             "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
@@ -279,10 +289,6 @@ def plot_spec(show_observed = True, show_unshifted = True):
 #                  "#AF009F", "#0F3FF0", "#F0FA0F",
 #                  "#A98765", "#0152A3", "#0FFFF0",
 #                  "#C0110C", "#0B0D0E", "#BDC0EB"]
-    
-    # Plot the entire observed spectrum
-    if show_observed:
-        plt.plot(wl, inten, color = "blue")
 
     # Plot the regions
     for r in result.region_result:
@@ -293,6 +299,11 @@ def plot_spec(show_observed = True, show_unshifted = True):
             
             # Shifted
             plt.plot(r.wav, r.inten[a], color = plot_color_list[a % len(plot_color_list)])
+    
+    # Plot the entire observed spectrum
+    if show_observed:
+        plt.plot(wl, inten / inten.max(), color = "blue")
+        
     plt.show()
 
 def plot_chisq(region_nr):
@@ -300,6 +311,44 @@ def plot_chisq(region_nr):
     a = au.list_abund(r.abund, default_val = -4.5)
     chi2 = r.chisq
     plt.plot(a, chi2)
+    plt.show()
+
+def plot_bisect(region_nr, abund_filter = None, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
+    if not (plot_observed or plot_synth):
+        print("Must plot something")
+    regres = result.region_result[region_nr]
+
+    # Plot the bisection of the synthetic data    
+    if plot_synth:
+        # Get the wavelengths
+        rwav = regres.wav
+        
+        # Filter the abundances (if needed)
+        if isinstance(abund_filter, int):
+            rinten_all = regres.inten[abund_filter]
+        elif hasattr(abund_filter, "__call__"):
+            rinten_all = abund_filter(regres.inten)
+        elif abund_filter != None:
+            rinten_all = regres.inten[abund_filter]
+        else:
+            rinten_all = regres.inten
+        
+        # Plot the bisections
+        for a, rinten in enumerate(rinten_all):
+            bwav, binten = bisect.get_bisection(rwav, rinten, num = num)
+            if show_synth:
+                plt.plot(rwav, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.5, linestyle = "--")
+            plt.plot(bwav, binten, color = plot_color_list[a % len(plot_color_list)])
+    
+    # Plot the bisection of the observed data
+    if plot_observed:
+        rwav = regres.region.wav
+        rinten = regres.region.inten
+        bwav, binten = bisect.get_bisection(rwav, rinten, num = num)
+        if show_observed:
+            plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
+        plt.plot(bwav, binten, color = "blue")
+
     plt.show()
 
 if _MODE_SHOW_PLOTS:
@@ -332,4 +381,7 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
 #    print("NOTE: WHEN dl IS DIRECTLY SET TO dl = 0.021 THE SYNTHETIC CURVE IS NOTICABLY DISPLACED COMPARED TO THE ATLAS SPECTRA AND DOES NOT FIT!!!")
 #    print("      AND WITH NOTICABLY I MEAN IT'S VISIBLE TO THE NAKED EYE (DEPENDING ON ZOOM LEVEL)!!!")
 #    print("      SHOULD PROBABLY MAKE SURE I HAVE COMPARED TO THE CORRECT ATLAS SPECTAL LINES!!!")
+
+# Show the time the calculation took
+print("Time:", time_end - time_start, " (seconds)")
 

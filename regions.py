@@ -42,7 +42,7 @@ def _require_positive_int(obj, name):
 
 class Region(object):
 #    def __init__(self, wav_start, wav_end, dlambda, nlambda = None, scale_factor = 1.0, cgs = True):
-    def __init__(self, lambda0, wav, inten, dlambda, nlambda, scale_factor = 1.0, interp_obs = False, inten_scale_factor = 1.0, nshift = None, nmul = None):
+    def __init__(self, lambda0, wav, inten, dlambda, nlambda, scale_factor = 1.0, interp_obs = False, nshift = None, nmul = None):
         """
         Constructor for Region objects. It is not recommeneded to use this constructor directly. The parameters are:
             lambda0 = starting wavelength
@@ -60,15 +60,34 @@ class Region(object):
             nmul               = a positive integer that multiplies the nshift quantity (default is 1)
         """
         self.wav = wav
-        self.inten = inten
-        self.inten_scale_factor = inten_scale_factor
+        self.inten_scale_factor = inten.max()
+        self.inten = inten / self.inten_scale_factor
         self.lambda0 = lambda0
         self.length = wav.size
+        self.interp_obs = interp_obs
+        
+        # Get dlambda
+        if hasattr(dlambda, "__call__"):
+            dlambda = dlambda(wav)
+        elif not np.isscalar(dlambda):
+            raise Exception("dlambda must be a scalar or a callable")
+        
+        # Get nlambda
+        if hasattr(nlambda, "__call__"):
+            nlambda = nlambda(wav)
+        elif not np.isscalar(nlambda):
+            raise Exception("nlambda must be a scalar or a callable")
+        
+        # Get and validate the scale factor
+        if hasattr(scale_factor, "__call__"):
+            scale_factor = scale_factor(wav, self.inten)
+        elif not np.isscalar(scale_factor):
+            raise Exception("scale_factor must be a scalar or a callable")
+
         self.dlambda = dlambda
         self.nlambda = nlambda
         self.scale_factor = scale_factor
         self.lambda_end = lambda0 + dlambda*nlambda
-        self.interp_obs = interp_obs
         
         # Set nshift
         if nshift != None:
@@ -112,33 +131,17 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
     # Get the wavelengths and their corresponding intensities and continuum intensities
     wav, inten, cont = atlas.getatlas(lambda0, lambda_end, cgs = cgs)
     lambda0 = wav[0]
-    inten_max = inten.max()
-    inten /= inten_max
     
-    # Get and validate dlambda
+    # Handle the default value for dlambda
     if dlambda == None:
         dlambda = wav[1] - wav[0]
-    elif hasattr(dlambda, "__call__"):
-        dlambda = dlambda(wav)
-    elif not np.isscalar(dlambda):
-        raise Exception("dlambda must be a scalar or a callable")
     
-    # Get and validate nlambda
+    # Handle the default value for nlambda
     if nlambda == None:
         nlambda = wav.size
-    elif hasattr(nlambda, "__call__"):
-        nlambda = nlambda(wav)
-    else:
-        raise Exception("nlambda must be None or a callable")
     
-    # Get and validate the scale factor
-    if hasattr(scale_factor, "__call__"):
-        scale_factor = scale_factor(wav, inten, cont)
-    elif not np.isscalar(scale_factor):
-        raise Exception("scale_factor must be a scalar or a callable")
-    
-    # Return the new region    
-    return Region(lambda0, wav, inten, dlambda, nlambda, scale_factor = scale_factor, interp_obs = interp_obs, inten_scale_factor = inten_max, nshift = nmul, nmul = nmul)
+    # Return the new region
+    return Region(lambda0, wav, inten, dlambda, nlambda, scale_factor = scale_factor, interp_obs = interp_obs, nshift = nmul, nmul = nmul)
 
 def new_region(obs_wav, obs_inten, lambda0, dlambda, nlambda, scale_factor = 1.0, interp_obs = False, nshift = None, nmul = None):
     """
