@@ -169,8 +169,8 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-#abunds = [-4.4, -4.45] #, -4.55, -4.6]
-abunds = -np.arange(4.1, 4.8, step = 0.001)
+abunds = [-4.4, -4.45] #, -4.55, -4.6]
+#abunds = -np.arange(4.1, 4.8, step = 0.001)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -190,8 +190,10 @@ def print_shifts(show_all = True):
 
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
-result = synther.fit_spectrum_para(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
-time_end = time.time()
+try:
+    result = synther.fit_spectrum(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
+finally:
+    time_end = time.time()
 
 print("REGION LEN:", reg_length)
 print_shifts(show_all = False)

@@ -327,12 +327,13 @@ def fit_spectrum_para(cfg_file, obs_wav, obs_inten, regions, abund_range, proces
     
     # Split up the abundencies between processes
     abund_range = list(abund_range)
-    abunds = [[]]*processes
+    abunds = [[] for _ in range(processes)]
     abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
     for i in range(processes):
         si = i*abunds_per_process
         ei = (i + 1)*abunds_per_process
         abunds[i].extend(abund_range[si:ei])
+        print("Abunds[", i, "] =\n", abunds[i], "\n***************")
 
     # Spawn the processes
     proc_list = []
