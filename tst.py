@@ -25,7 +25,7 @@ _MODE_FIT_BEST_SPACING = True
 _MODE_INTERP_OBS = False
 _MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
-_MODE_USE_SEEKING = False
+_MODE_USE_SEEKING = True
 
 #
 initial_abunds = None
@@ -136,16 +136,16 @@ else:
             # CANDIDATES:
             #    dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1])      <---- shift 0.002
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift 0.004   (best chi squared)
-            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 4957.29 or 4957.3 or 4957.31
-            regs.new_region_in(at, 4957.3 - 1.5, 4957.3 + 1.5, interp_obs = False),
+#            regs.new_region_in(at, 4957.3 - 1.5, 4957.3 + 1.5, interp_obs = False),
             
             # Line at: 4890.74 or 4890.75 or 4890.76 or 4890.77
             # Regarding dlambda: The synthetic line should be shifted to the left, towards lower wavelengths. If dlambda is the mean wavelength difference
             # or higher the synthetic line is shifted towards the right (higher wavelengths). Meanwhile, if dlambda is the minimum wavelength difference
             # it is shifted too much to the left. As such, we can conclude that dlambda should be between the minimum and the mean wavelength difference.
-            regs.new_region_in(at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
         ]
         initial_abunds = [
             (-4.5, -4.55),
@@ -169,8 +169,8 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-abunds = [-4.4, -4.45] #, -4.55, -4.6]
-#abunds = -np.arange(4.1, 4.8, step = 0.001)
+#abunds = [-4.4, -4.45] #, -4.55, -4.6]
+abunds = -np.arange(4.1, 4.8, step = 0.005)
 
 def print_shifts(show_all = True):
     for r in result.region_result:

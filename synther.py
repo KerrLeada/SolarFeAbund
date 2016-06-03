@@ -95,7 +95,40 @@ class RegionResult(object):
         self.best_abund = abund[i]
     
     def fuse_result(self, other):
-        return RegionResult(self.region, self.wav, self.inten + other.inten, self.shift + other.shift, self.chisq + other.chisq, self.shift_all + other.shift_all, self.chisq_all + other.chisq_all, self.inten_norm_factor, self.abund + other.abund)
+        # Make sure the regions are the same
+        self_reg = self.region
+        other_reg = other.region
+        if (self_reg.inten_scale_factor != other_reg.inten_scale_factor or 
+            self_reg.lambda0 != other_reg.lambda0 or
+            self_reg.length != other_reg.length or
+            self_reg.interp_obs != other_reg.interp_obs or
+            self_reg.dlambda != other_reg.dlambda or
+            self_reg.nlambda != other_reg.nlambda or
+            self_reg.scale_factor != other_reg.scale_factor or
+            self_reg.lambda_end != other_reg.lambda_end or
+            self_reg.nshift != other_reg.nshift or
+            self_reg.nmul != other_reg.nmul or
+            not (np.array_equal(self.region.wav, other.region.wav) and np.array_equal(self.region.inten, other.region.inten))):
+            raise Exception("Invalid region")
+
+        # Concatenate the numpy arrays, with the data from this result first
+        inten = np.concatenate((self.inten, other.inten), axis = 0)
+        shift = np.concatenate((self.shift, other.shift), axis = 0)
+        chisq = np.concatenate((self.chisq, other.chisq), axis = 0)
+        chisq_all = np.concatenate((self.chisq_all, other.chisq_all), axis = 0)
+        inten_norm_factor = np.concatenate((self.inten_norm_factor, other.inten_norm_factor), axis = 0)
+        
+        # Concatenate the abundencies. Note that these are not numpy arrays but ordinary python lists,
+        # so self.abund + other.abund means concatenation and not elementwise addition.
+        abund = self.abund + other.abund
+        
+        # Return the fused result
+        return RegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_norm_factor, abund)
+
+        # Create a new array of intensities, where the rows of self.inten comes first followed by the rows of other.inten
+#        inten = np.zeros((self.inten.shape[0] + other.inten.shape[0], self.inten.shape[1]), dtype = np.float64)
+#        inten[:self.inten.shape[0],:] = self.inten
+#        inten[other.inten.shape[0]:,:] = other.inten
 
 class SynthResult(object):
     """
@@ -509,12 +542,14 @@ class _FitState(object):
                 prev = (a1, a2)
                 if graddir == -1:
                     a1, a2 = a1 - da, a1
+                    chisq2 = chisq1
+                    chisq1 = self._synth_abund(au.abund(elem, a1))
                 else:
                     a1, a2 = a2, a2 + da
+                    chisq1 = chisq2
+                    chisq2 = self._synth_abund(au.abund(elem, a2))
                 
                 # Calculat chi squared for the two abundencies
-                chisq1 = self._synth_abund(au.abund(elem, a1))
-                chisq2 = self._synth_abund(au.abund(elem, a2))
     #            print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
     #            print("a1:", a1, "\na2:", a2, "\n")
 
@@ -533,7 +568,7 @@ class _FitState(object):
         best_a = a1 if chisq1 < chisq2 else a2
         return best_chisq, best_a
 
-def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, abunds, da, elem = "Fe", interation_limit = 50, interp_obs = False, verbose = False):
+def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, abunds, da, elem = "Fe", iteration_limit = 50, interp_obs = False, verbose = False):
     """
     NEED TO IMPLEMENT THIS PROBLERLY!!! RIGHT NOW IT'S BUGGED!!!
     """
