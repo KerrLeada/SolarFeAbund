@@ -25,7 +25,7 @@ _MODE_FIT_BEST_SPACING = True
 _MODE_INTERP_OBS = False
 _MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
-_MODE_USE_SEEKING = True
+_MODE_USE_SEEKING = False
 
 #
 initial_abunds = None
@@ -106,7 +106,7 @@ else:
             # CANDIDATES: (NOT SURE WHICH ONE IS BEST, BUT THE FIRST ONE HAS BETTER CHI SQUARED THEN THE LATTER!!!)
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift = 0.008
             #    dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])      <---- shift = 0.006
-            regs.new_region_in(at, 6240.44, 6240.84, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 6240.44, 6240.84, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 6481.85 or 6481.86 or [6481.87] (maybe: 6481.8 to 6481.9)
             # (CAN MAYBE CHANGE WAVELENGTH A LITTLE)
@@ -117,7 +117,8 @@ else:
             regs.new_region_in(at, 6498.938 - 0.3, 6498.938 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1]), interp_obs = False),
 
             # Line at: 6581.19 or 6581.2 (maybe: 6581.18 to 6581.22)
-#            regs.new_region_in(at, , , interp_obs = False),
+            # Think this line has blending problems!!!!
+#            regs.new_region_in(at, 6581.28 - 0.3, 6581.28 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1]), interp_obs = False),
 
             # Line at: 6667.7 or 6667.71 (maybe: 6667.68 to 6667.74)
 #            regs.new_region_in(at, , , interp_obs = False),
@@ -129,7 +130,17 @@ else:
 #            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 5329.98 or 5329.98
-            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.93*np.max(w[1:] - w[:-1]), interp_obs = False),
+
+            # Line at: 5778.44 or 5778.45            
+            regs.new_region_in(at, 5778.45 - 0.2, 5778.45 + 0.2, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 5701.53 or 5701.54 or 5701.55
+            regs.new_region_in(at, 5701.54 - 0.3, 5701.54 + 0.3, dlambda = lambda w: np.max(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 6836.99 or 6837 or 6837.01
+            # REFINE
+            regs.new_region_in(at, 6837 - 0.2, 6837 + 0.2, dlambda = lambda w: 0.967*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # **** STRONG LINES ****
             # Line at: 5232.93 or 5232.94 or 5232.95
@@ -169,8 +180,8 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-#abunds = [-4.4, -4.45] #, -4.55, -4.6]
-abunds = -np.arange(4.1, 4.8, step = 0.005)
+abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
+#abunds = -np.arange(4.1, 4.8, step = 0.005)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -224,6 +235,7 @@ def print_best():
             best_abunds.append(au.get_value(r.best_abund))
     print("Mean abund:", np.mean(best_abunds))
     print("*** ", best_abunds)
+print_best()
 
 print("FIX THE FITTING PROBLEM!!! SOMETIMES THE SHIFT DEPENDS ON OTHER LINES THEN THE ONE IN QUESTION, WHICH SHOULD NOT HAPPEN!!!\n*********\n")
 if _MODE in {1, 2, 3}:
@@ -233,7 +245,6 @@ elif _MODE == -1:
 else:
     print("MODE:", _MODE, "       (REGIONS SPECIFIED MANALLY!!!)")
 print("INTERPOLATING OBSERVED:", _MODE_INTERP_OBS)
-print("REGION LEN:", reg_length)
 
 plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#11FF0A", "#AAAA00", "#00AAAA",
@@ -241,7 +252,7 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
-def plot_region(region_nr, show_observed = True, show_unshifted = False):
+def plot_region(region_nr, show_observed = True, show_unshifted = False, obs_pad = 0.0):
     # Get the region
     region_result = result.region_result[region_nr]
     
@@ -269,8 +280,22 @@ def plot_region(region_nr, show_observed = True, show_unshifted = False):
     if show_observed:
         # Get the observed spectrum contained in the region
 #        rwav, rinten = region_result.region.get_contained(wl, inten)
-        rwav = region_result.region.wav
-        rinten = region_result.region.inten
+        if obs_pad == 0.0:
+            rwav = region_result.region.wav
+            rinten = region_result.region.inten
+        else:
+            # If the pad is a scalar, apply it to both ends, otherwise assume its a tuple with two elements, where the
+            # first is the left pad and the second the right pad.
+            if np.isscalar(obs_pad):
+                lambda0 = region_result.region.lambda0 - obs_pad
+                lambda_end = region_result.region.lambda_end + obs_pad
+            else:
+                lambda0 = region_result.region.lambda0 - obs_pad[0]
+                lambda_end = region_result.region.lambda_end + obs_pad[1]
+            
+            # Get the wavelengths and intensities
+            rwav, rinten, cont = at.getatlas(lambda0, lambda_end, cgs = True)
+            rinten /= region_result.region.inten_scale_factor
         
         # Plot the spectrum, followed by the synth lines
         plt.plot(rwav, rinten, color = "blue")
@@ -370,9 +395,15 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
     """
     Plots the observed spectra between lambda0 and lambda_end.
     """
-    wav, intensity = regs.get_within(lambda0, lambda_end, wl, inten)
+    wav, intensity, cont = at.getatlas(lambda0, lambda_end, cgs = True)
+    if "normalize" not in kwargs or kwargs["normalize"]:
+        intensity /= intensity.max()
+#    wav, intensity = regs.get_within(lambda0, lambda_end, wl, inten)
     plt.plot(wav, intensity, *args, **kwargs)
     plt.show()
+
+def plot_around(lambda_mid, length, *args, **kwargs):
+    plot_in(lambda_mid - length, lambda_mid + length, *args, **kwargs)
 
 #def _print_vel(dlambda):
 #    _, lambda_min = result.region_min()
