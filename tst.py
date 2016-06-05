@@ -87,7 +87,7 @@ else:
     else:
         regions = [
             # Line at: 6301.5 Å
-            regs.new_region_in(at, 6301.2, 6301.8, interp_obs = False),
+            regs.new_region_in(at, 6301.18, 6301.82, interp_obs = False),
 
             # Line at: 6302.5 Å
             # POSSIBLY (BUT DOUBTFULLY) BETTER:
@@ -100,7 +100,7 @@ else:
             # CANDIDATES:
             #    dlambda = lambda w: 0.98*np.max(w[1:]-w[:-1])  <---- Gives a shift of 0.002... looks like a bit higher shift could be good
             #    dlambda = lambda w: 0.975*np.max(w[1:]-w[:-1])  <---- Gives a shift of 0.004... not sure if it fits or not...
-            regs.new_region_in(at, 6219.07, 6219.47, dlambda = lambda w: 0.972*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 6219.01, 6219.53, dlambda = lambda w: 0.972*np.max(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 6240.63 or [6240.64] or 6240.65
             # CANDIDATES: (NOT SURE WHICH ONE IS BEST, BUT THE FIRST ONE HAS BETTER CHI SQUARED THEN THE LATTER!!!)
@@ -130,7 +130,8 @@ else:
 #            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
             
             # Line at: 5329.98 or 5329.98
-            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.93*np.max(w[1:] - w[:-1]), interp_obs = False),
+            # BLENDING: MIGHT NOT BE RELIABLE?
+#            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.93*np.max(w[1:] - w[:-1]), interp_obs = False),
 
             # Line at: 5778.44 or 5778.45            
             regs.new_region_in(at, 5778.45 - 0.2, 5778.45 + 0.2, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
@@ -142,7 +143,27 @@ else:
             # REFINE
             regs.new_region_in(at, 6837 - 0.2, 6837 + 0.2, dlambda = lambda w: 0.967*np.max(w[1:] - w[:-1]), interp_obs = False),
             
-            # **** STRONG LINES ****
+            # Line at: 5253.4617
+            # REFINE
+            regs.new_region_in(at, 5253.4617 - 0.25, 5253.4617 + 0.25, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 5412.7833
+            # REFINE
+            regs.new_region_in(at, 5412.7833 - 0.2, 5412.7833 + 0.2, dlambda = lambda w: 0.95*np.max(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 6750.1510
+            regs.new_region_in(at, 6750.1510 - 0.3, 6750.1510 + 0.3, interp_obs = False),
+            
+            # Line at: 5705.4639
+            # REFINE: WOULD BE BETTER IF IT COULD BE PUSHED 0.002 TO THE LEFT!!! (TO 0.008 FROM 0.006)
+            regs.new_region_in(at, 5705.4639 - 0.25, 5705.4639 + 0.25, dlambda = lambda w: 0.991*np.max(w[1:] - w[:-1]), interp_obs = False),
+            
+            # Line at: 5956.6933
+            regs.new_region_in(at, 5956.6933 - 0.3, 5956.6933 + 0.3, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+            
+            # **** STRONG LINES **** 6173.3339 6173.3347
+#            regs.new_region_in(at, 6173.3339 - 0.3, 6173.3339 + 0.3, interp_obs = False),
+#            regs.new_region_in(at, 6173.3347 - 0.3, 6173.3347 + 0.3, interp_obs = False),
             # Line at: 5232.93 or 5232.94 or 5232.95
             # CANDIDATES:
             #    dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1])      <---- shift 0.002
@@ -180,8 +201,9 @@ _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
-abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
+#abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
 #abunds = -np.arange(4.1, 4.8, step = 0.005)
+abunds = -np.arange(4.1, 4.8, step = 0.01)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -202,12 +224,11 @@ def print_shifts(show_all = True):
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_spectrum(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
+    result = synther.fit_spectrum_para(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
 finally:
     time_end = time.time()
 
-print("REGION LEN:", reg_length)
-print_shifts(show_all = False)
+#print_shifts(show_all = False)
 
 if _MODE_USE_SEEKING and initial_abunds:
     print("\n**********************")
@@ -233,7 +254,7 @@ def print_best():
         print("")
         if r.best_abund != []:
             best_abunds.append(au.get_value(r.best_abund))
-    print("Mean abund:", np.mean(best_abunds))
+    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12)
     print("*** ", best_abunds)
 print_best()
 
@@ -252,7 +273,7 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
-def plot_region(region_nr, show_observed = True, show_unshifted = False, obs_pad = 0.0):
+def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, show_unshifted = False, obs_pad = 0.0):
     # Get the region
     region_result = result.region_result[region_nr]
     
@@ -274,7 +295,7 @@ def plot_region(region_nr, show_observed = True, show_unshifted = False, obs_pad
             plt.plot(region_result.wav + region_result.shift[a], region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.25, linestyle = "--")
         
         # Shifted
-        plt.plot(region_result.wav, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)])
+        plt.plot(region_result.wav - offset, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha)
     
     # Show the observed spectrum
     if show_observed:
@@ -340,7 +361,7 @@ def plot_chisq(region_nr):
     plt.plot(a, chi2)
     plt.show()
 
-def plot_bisect(region_nr, abund_filter = None, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
+def plot_bisect(region_nr, abund_filter = None, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
     if not (plot_observed or plot_synth):
         print("Must plot something")
     regres = result.region_result[region_nr]
@@ -364,8 +385,8 @@ def plot_bisect(region_nr, abund_filter = None, plot_observed = True, plot_synth
         for a, rinten in enumerate(rinten_all):
             bwav, binten = bisect.get_bisection(rwav, rinten, num = num)
             if show_synth:
-                plt.plot(rwav, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.5, linestyle = "--")
-            plt.plot(bwav, binten, color = plot_color_list[a % len(plot_color_list)])
+                plt.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
+            plt.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
     
     # Plot the bisection of the observed data
     if plot_observed:
@@ -404,6 +425,12 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
 
 def plot_around(lambda_mid, length, *args, **kwargs):
     plot_in(lambda_mid - length, lambda_mid + length, *args, **kwargs)
+
+def _conv(energy):
+    """
+    Converts energy from 1/cm to eV
+    """
+    return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
 
 #def _print_vel(dlambda):
 #    _, lambda_min = result.region_min()
