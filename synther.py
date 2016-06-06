@@ -18,6 +18,7 @@ import fitting
 import regions as regs
 import abundutils as au
 import multiprocessing as mp
+import astropy.units
 
 _MODEL_FILE = "data/falc_filled.nc"
 
@@ -96,19 +97,21 @@ class RegionResult(object):
     
     def fuse_result(self, other):
         # Make sure the regions are the same
-        self_reg = self.region
-        other_reg = other.region
-        if (self_reg.inten_scale_factor != other_reg.inten_scale_factor or 
-            self_reg.lambda0 != other_reg.lambda0 or
-            self_reg.length != other_reg.length or
-            self_reg.interp_obs != other_reg.interp_obs or
-            self_reg.dlambda != other_reg.dlambda or
-            self_reg.nlambda != other_reg.nlambda or
-            self_reg.scale_factor != other_reg.scale_factor or
-            self_reg.lambda_end != other_reg.lambda_end or
-            self_reg.nshift != other_reg.nshift or
-            self_reg.nmul != other_reg.nmul or
-            not (np.array_equal(self.region.wav, other.region.wav) and np.array_equal(self.region.inten, other.region.inten))):
+#        self_reg = self.region
+#        other_reg = other.region
+#        if (self_reg.inten_scale_factor != other_reg.inten_scale_factor or 
+#            self_reg.lambda0 != other_reg.lambda0 or
+#            self_reg.length != other_reg.length or
+#            self_reg.dlambda != other_reg.dlambda or
+#            self_reg.nlambda != other_reg.nlambda or
+#            self_reg.scale_factor != other_reg.scale_factor or
+#            self_reg.lambda_end != other_reg.lambda_end or
+#            self_reg.nshift != other_reg.nshift or
+#            self_reg.nmul != other_reg.nmul or
+#            not (np.array_equal(self.region.wav, other.region.wav) and np.array_equal(self.region.inten, other.region.inten))):
+        if self.region != other.region:
+            print(self.region)
+            print(other.region)
             raise Exception("Invalid region")
 
         # Concatenate the numpy arrays, with the data from this result first
@@ -124,11 +127,6 @@ class RegionResult(object):
         
         # Return the fused result
         return RegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_norm_factor, abund)
-
-        # Create a new array of intensities, where the rows of self.inten comes first followed by the rows of other.inten
-#        inten = np.zeros((self.inten.shape[0] + other.inten.shape[0], self.inten.shape[1]), dtype = np.float64)
-#        inten[:self.inten.shape[0],:] = self.inten
-#        inten[other.inten.shape[0]:,:] = other.inten
 
 class SynthResult(object):
     """
@@ -163,7 +161,7 @@ def _synth(s, m):
     """
     return s.synth(m.ltau, m.temp, m.pgas, m.vlos, m.vturb, m.B, m.inc, m.azi, False)
 
-def _setup_regions(obs_wav, obs_inten, regions):
+def _setup_regions(atlas, regions):
     # Setup the region data
     region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
     region_list = list(regions)
@@ -182,10 +180,10 @@ def _setup_regions(obs_wav, obs_inten, regions):
                 err_msg = ("The given tuple-like region was not in an acceptable form. It should have 4 elements of which the first, second " +
                            "and fourth are of type numpy.float64 while the third is of type numpy.int32. Normal floats and inte can also be used.")
                 raise ValueError(err_msg)
-            region_list[ri] = regs.new_region(obs_wav, obs_inten, *regions[ri])
+            region_list[ri] = regs.new_region(atlas, *regions[ri])
     return region_list, region_data
 
-def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
+def _fit_regions(regions, wav, synth_data, abund_updates):
     # Fit the data
     abund_count = len(abund_updates)
     
@@ -215,7 +213,6 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
         # Get the region of the atlas spectrum
         robs_wav = r.wav
         robs_inten = r.inten
-        print("*** Region:", str(r))
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions.
@@ -274,11 +271,7 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
                 #                     might not align properly due to inconsistent spacing between the wavelength
                 #                     data points in the atlas data.
                 #                     HOWEVER doing so gives the wrong result... the "best" shift becomes too large. WHY?
-                if interp_obs or r.interp_obs:
-                    isyn = np.interp(robs_wav, rwav - shift[ii], rspec)
-                else:
-                    isyn = np.interp(rwav, rwav - shift[ii], rspec)
- #               print("*** isyn: (len ", len(isyn), ")\n", isyn, "\n***\n", sep = "")
+                isyn = np.interp(rwav, rwav - shift[ii], rspec)
                 
                 # Calculate and store the chi squared
                 rchisq[a,ii] = ((robs_inten - isyn)**2).sum()
@@ -295,17 +288,14 @@ def _fit_regions(regions, wav, synth_data, abund_updates, interp_obs):
 
         # Calculate the chi squared for each abundence, for the best shift
         for a, (rwav, rspec) in enumerate(zip(rwav_all, rspec_all)):
-            if interp_obs or r.interp_obs:
-                isyn = np.interp(robs_wav, rwav - rshift[a], rspec)
-            else:
-                isyn = np.interp(rwav, rwav - rshift[a], rspec)
+            isyn = np.interp(rwav, rwav - rshift[a], rspec)
             chisq[a] = ((robs_inten - isyn)**2).sum()
         
         #
         region_result.append(RegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
     return region_result
 
-def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
+def fit_spectrum(cfg_file, atlas, regions, abund_range, elem = "Fe", use_default_abund = True, verbose = False):
     """
     This files synthesizes a spectrum and attempts to fit it to the given observed spectrum.
     """
@@ -315,7 +305,7 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     au.check_abund(abund_updates)
 
     # Copy the region list and setup an array with the region data
-    regions, region_data = _setup_regions(obs_wav, obs_inten, regions)
+    regions, region_data = _setup_regions(atlas, regions)
 
     # Init LTE class
     s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
@@ -336,44 +326,45 @@ def fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abund_range, elem = "Fe"
     wav = s.getwav()
     
     # Fit the regions (kind of... technically this determines how to shift the regions and how well everything then fits)
-    region_result = _fit_regions(regions, wav, synth_data, abund_updates, interp_obs)
+    region_result = _fit_regions(regions, wav, synth_data, abund_updates)
     
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
 
-def _parallel_fit(conn, cfg_file, obs_wav, obs_inten, regions, abunds, elem, use_default_abund, interp_obs, verbose):
-    print(abunds)
+def _parallel_fit(conn, cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose):
     try:
-        result = fit_spectrum(cfg_file, obs_wav, obs_inten, regions, abunds, elem, use_default_abund, interp_obs, verbose)
+        result = fit_spectrum(cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose)
         conn.send(result)
     except:
         conn.send(None)
+        raise
     finally:
         conn.close()
 
 # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
 _EVIL = None
 
-def fit_spectrum_para(cfg_file, obs_wav, obs_inten, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, interp_obs = False, verbose = False):
+def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, verbose = False):
     # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
     global _EVIL
     
     # Split up the abundencies between processes
     abund_range = list(abund_range)
+    print(processes)
     abunds = [[] for _ in range(processes)]
     abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
     for i in range(processes):
         si = i*abunds_per_process
         ei = (i + 1)*abunds_per_process
         abunds[i].extend(abund_range[si:ei])
-        print("Abunds[", i, "] =\n", abunds[i], "\n***************")
+#        print("Abunds[", i, "] =\n", abunds[i], "\n***************")
 
     # Spawn the processes
     proc_list = []
     conns = []
     for a in abunds:
         rec, conn = mp.Pipe()
-        p = mp.Process(target = _parallel_fit, args = (conn, cfg_file, obs_wav, obs_inten, regions, a, elem, use_default_abund, interp_obs, verbose))
+        p = mp.Process(target = _parallel_fit, args = (conn, cfg_file, atlas, regions, a, elem, use_default_abund, verbose))
         p.start()
         proc_list.append(p)
         conns.append(rec)
@@ -397,12 +388,16 @@ def fit_spectrum_para(cfg_file, obs_wav, obs_inten, regions, abund_range, proces
     return result
     
 class _FitState(object):
-    def __init__(self, reg, s, m, iteration_limit, interp_obs, verbose):
+    def __init__(self, reg, s, m, abund_limits, verbose):
+    
+        if len(abund_limits) != 2:
+            raise Exception("The abundency limits are given in the form of a tuple-like object with 2 elements, but the given limits had " + str(len(abund_limits)) + " elements")
+        
         # Store the region, synth and model objects
         self.reg = reg
         self.s = s
         self.m = m
-        self.iteration_limit = iteration_limit
+        self.abund_limits = abund_limits
         
         # Create shifts
         self.nshift = reg.nmul*reg.nshift
@@ -425,7 +420,7 @@ class _FitState(object):
         # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORREdCT?
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
-        self.psf = _gaussian(self.tw, [1.0, 0.0, 1.83*np.ceil(reg.lambda_end)/300000.0])
+        self.psf = _gaussian(self.tw, [1.0, 0.0, 1.83*reg.lambda_end/300000.0])
         
         # Initialize some lists
         self.rchisq = []
@@ -435,7 +430,6 @@ class _FitState(object):
         self.inten_max = []
         
         # Store extra options
-        self.interp_obs = interp_obs
         self.verbose = verbose
         
     def _synth_abund(self, abund):
@@ -443,7 +437,7 @@ class _FitState(object):
         self.s.updateABUND(abund, verbose = self.verbose)
         spec = _synth(self.s, self.m)[0,0,0,:,0]
         inten_max = spec.max()
-        spec /= inten_max
+#        spec /= inten_max
         self.inten_max.append(inten_max)
         
         # Get the wavelengths
@@ -461,6 +455,7 @@ class _FitState(object):
 
         # Convolve the spectra
         rspec = _convolve(rspec, self.psf / self.psf.sum())
+        rspec /= rspec.max()
     #            print("*** rspec:\n", rspec, "\n***\n")
         
         # Get the region of the atlas spectrum
@@ -471,15 +466,7 @@ class _FitState(object):
         rchisq = np.zeros(len(self.shift), dtype = np.float64)
         for ii in range(len(self.shift)):
             # Interpolate the synthetic spectrum and shift it a little
-            # IMPORTANT QUESTION: Should I interoplate at "obs_wav" or at "wav"? Example does "wav" but that
-            #                     might not align properly due to inconsistent spacing between the wavelength
-            #                     data points in the atlas data.
-            #                     HOWEVER doing so gives the wrong result... the "best" shift becomes too large. WHY?
-            if self.interp_obs or self.reg.interp_obs:
-                isyn = np.interp(robs_wav, rwav - self.shift[ii], rspec)
-            else:
-                isyn = np.interp(rwav, rwav - self.shift[ii], rspec)
-    #               print("*** isyn: (len ", len(isyn), ")\n", isyn, "\n***\n", sep = "")
+            isyn = np.interp(rwav, rwav - self.shift[ii], rspec)
             
             # Calculate and store the chi squared
             rchisq[ii] = ((robs_inten - isyn)**2).sum()
@@ -501,6 +488,8 @@ class _FitState(object):
 
     def fit(self, initial_abunds, elem, das):
         
+        print("!!!!!!!!! FITTING REGION:", self.reg, " !!!!!!!!!")
+        
         # Create the array containing the best shifts
         rshift = []
         rinten = []
@@ -517,6 +506,10 @@ class _FitState(object):
         a1 = min(initial_abunds)
         a2 = max(initial_abunds)
         
+        # Get the limits
+        a1_limit = min(self.abund_limits)
+        a2_limit = max(self.abund_limits)
+        
         # For each abundence
         chisq1 = self._synth_abund(au.abund(elem, a1))
         chisq2 = self._synth_abund(au.abund(elem, a2))
@@ -525,6 +518,7 @@ class _FitState(object):
         graddir = np.sign(chisq1 - chisq2)
         if graddir == 0:
             raise Exception("???")
+ #       print("******* graddir =", graddir, " *******")
         
         #
 
@@ -534,10 +528,8 @@ class _FitState(object):
     #    print("***** All da:", das)
         for da in das:
             a1, a2 = prev
-            print("**** NEW a1:", a1, "   a2:", a2, "****")
-    #        print("\n*** da:", da, "***\n")
-    #        print("a1:", a1, "\na2:", a2, "\n")
-            for iiiii in range(self.iteration_limit):
+ #           print("\n**** NEW a1:", a1, "   a2:", a2, "   da:", da, "****")
+            while a1 >= a1_limit or a2 <= a2_limit:
                 # Save the previous set of abundencies and move on to the next ones
                 prev = (a1, a2)
                 if graddir == -1:
@@ -549,17 +541,15 @@ class _FitState(object):
                     chisq1 = chisq2
                     chisq2 = self._synth_abund(au.abund(elem, a2))
                 
-                # Calculat chi squared for the two abundencies
-    #            print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
-    #            print("a1:", a1, "\na2:", a2, "\n")
-
                 # If there was a sign change, roll back to the previous a1 and a2 move on to the next da
-                if graddir*(chisq1 - chisq2) < 0:
-                    print("**** OLD a1:", a1, "   a2:", a2, "****")
+#                if graddir*(chisq1 - chisq2) < 0:
+#                print("a1:", a1, "    a2:", a2, "    chisq1:", chisq1, "    chisq2:", chisq2, "    graddir:", graddir, "    dir:", np.sign(chisq1 - chisq2), "    graddir==dir:", graddir == np.sign(chisq1 - chisq2))
+                if graddir != np.sign(chisq1 - chisq2):
+#                    print("**** OLD a1:", a1, "   a2:", a2, "****")
                     found_it = True
                     break
 
-        print("*** graddir:", graddir)
+ #       print("*** graddir:", graddir)
         
         if not found_it:
             print("!!!!!!!!!!!!!!!!!!!!!!!! Found no minimum !!!!!!!!!!!!!!!!!!!!!!!!")
@@ -568,13 +558,13 @@ class _FitState(object):
         best_a = a1 if chisq1 < chisq2 else a2
         return best_chisq, best_a
 
-def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, abunds, da, elem = "Fe", iteration_limit = 50, interp_obs = False, verbose = False):
+def fit_spectrum_seeking(cfg_file, atlas, regions, abunds, da, elem = "Fe", abund_limits = (-5.0, -4.0), verbose = False):
     """
     NEED TO IMPLEMENT THIS PROBLERLY!!! RIGHT NOW IT'S BUGGED!!!
     """
     
     # Make sure all the regions are instances of Region
-    regions = [regs.new_region_from(r, obs_wav, obs_inten) for r in regions]
+    regions = [regs.new_region_from(atlas, r) for r in regions]
     region_data = np.array([r.to_tuple() for r in regions], dtype = "float64, float64, int32, float64")
     
     # Init LTE class
@@ -592,6 +582,145 @@ def fit_spectrum2(cfg_file, obs_wav, obs_inten, regions, abunds, da, elem = "Fe"
     # Loop through each region
     result = []
     for r, a in zip(regions, abunds):
-        fs = _FitState(r, s, m, iteration_limit, interp_obs, verbose)
+        fs = _FitState(r, s, m, abund_limits, verbose)
         result.append((fs.fit(a, elem, da), fs))
+    return result
+
+def _equivalent_width(wav, inten, dlambda = None):
+    # The continuum level should be the maximum intensity
+    cont = inten.max()
+
+    # Calculate the area
+    if dlambda == None:
+        # If no dlambda was given, assume an uneven grid
+        area = 0
+        for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
+            # Since we want the area of a line, we been to subtract the continuum level
+            ia -= cont
+            ib -= cont
+            
+            # Add the contribution of this part to the area
+            area += (b - a)*(ia + ib)/2
+    else:
+        # If dlambda was given, use trapz from numpy instead to calculate the area
+        area = np.trapz(inten - cont, x = wav, dx = dlambda)
+
+    # If ew is the equivalent width, we have that: cont*ew = area
+    # As such the equivalent width is given by ew = area/cont
+    return abs(area/cont)
+
+class FitWidthResult(object):
+    """
+    Encapsulates the result of a fit using equivalent width
+    """
+    def __init__(self, region, wav, inten, inten_norm_factor, obs_eq_width, eq_width, diff, abund):
+        # Store the data
+        self.region = region
+        self.wav = wav
+        self.inten = inten
+        self.inten_norm_factor = inten_norm_factor
+        self.obs_eq_width = obs_eq_width
+        self.eq_width = eq_width
+        self.diff = diff
+        self.abund = abund
+        
+        # Get the best values
+        best = np.argmin(abs(diff))
+        self.best_index = best
+        self.best_inten = inten[best,:]
+        self.best_inten_norm_factor = inten_norm_factor[best]
+        self.best_eq_width = eq_width[best]
+        self.best_diff = diff[best]
+        self.best_abund = abund[best]
+
+def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
+    """
+    DOCUMENT THIS!!!
+    (This function synthezises spectrums for different abundencies and regions and returns which ones "fit" the
+     best, using equivalent widths)
+    """
+    
+    # Create the abundancy updates and check them
+    abund_updates = [au.abund(elem, a) for a in abund_range]
+    au.check_abund(abund_updates)
+    
+    # Setup the regions
+    regions, region_data = _setup_regions(atlas, regions)
+    
+    # Init LTE class
+    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
+
+    # Read a model
+    m = sp.model(_MODEL_FILE)
+    
+    # Synth the spectrum
+    synth_data = []
+    if use_default_abund:
+        abund_updates = au.empty_abund + abund_updates
+    for a in abund_updates:
+        s.updateABUND(a, verbose = verbose)
+        synth_data.append(_synth(s, m))
+
+    #
+    spec = [sd[0,0,0,:,0] for sd in synth_data]
+    
+    #
+    wav = s.getwav()
+    
+    #
+    result = []
+    
+    #
+    for ri, r in enumerate(regions):
+        inten_max = np.zeros(len(abund_updates), dtype = np.float64)
+        eq_width = np.zeros(len(abund_updates), dtype = np.float64)
+        diff = np.zeros(len(abund_updates), dtype = np.float64)
+        sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
+        
+        # Get the region of the atlas spectrum
+        robs_wav = r.wav
+        robs_inten = r.inten
+        
+        # Calculate the equivalent width of the observed data
+        obs_ew = (_equivalent_width(robs_wav, robs_inten) * astropy.units.AA).to(eq_width_unit).value
+
+        # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
+        # due to convective motions.
+        # IMPORTANT QUESTIONS:
+        # 1. Where does 1.83 km/s come from?
+        # 2. What's "tw"?
+        # 3. What's the different
+        tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
+#        print("*** tw:\n", tw, "\n***\n")
+        
+        # WHAT IS THIS AND WHAT DOES IT DO???
+        #
+        # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
+        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
+        # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
+        # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
+        # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
+        # ligh in km/s)
+        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        
+        for ai, a in enumerate(abund_updates):
+            # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
+            rwav, rspec = r.get_contained(wav, spec[ai], left_padding = 1e-9)
+            
+            # Handle errors due to math with floating point numbers
+            if len(rwav) != r.nlambda:
+                print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - r.nlambda, "\n")
+                rwav = rwav[:r.nlambda]
+                rspec = rspec[:r.nlambda]
+
+            # Convolve the spectra
+            rspec = _convolve(rspec, psf / psf.sum())
+            inten_max[ai] = rspec.max()
+            rspec /= inten_max[ai]
+            
+            # Calculate the equivalent width
+            eq_width[ai] = (_equivalent_width(rwav, rspec, dlambda = r.dlambda) * astropy.units.AA).to(eq_width_unit).value
+            diff[ai] = eq_width[ai] - obs_ew
+            sinten[ai,:] = rspec
+        result.append(FitWidthResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
     return result

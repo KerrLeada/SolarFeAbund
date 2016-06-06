@@ -22,10 +22,10 @@ import bisect
 # Used to quickly switch code
 _MODE = 0
 _MODE_FIT_BEST_SPACING = True
-_MODE_INTERP_OBS = False
 _MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
-_MODE_USE_SEEKING = False
+_MODE_USE_SEEKING = True
+_MODE_PRINT_BEST = False
 
 #
 initial_abunds = None
@@ -87,102 +87,112 @@ else:
     else:
         regions = [
             # Line at: 6301.5 Å
-            regs.new_region_in(at, 6301.18, 6301.82, interp_obs = False),
+            regs.new_region_in(at, 6301.18, 6301.82),
 
             # Line at: 6302.5 Å
             # POSSIBLY (BUT DOUBTFULLY) BETTER:
             #    6302.25 to 6302.75, gives shift of 0.004, cannot see much difference compared to the current
             #    interval 6302.25 to 6302.75. The chi squared is however higher for all abundencies, so it might
             #    just be worse.
-            regs.new_region_in(at, 6302.3, 6302.7, interp_obs = False),
+            regs.new_region_in(at, 6302.3, 6302.7),
             
             # Line at: [6219.27] or 6219.28
             # CANDIDATES:
             #    dlambda = lambda w: 0.98*np.max(w[1:]-w[:-1])  <---- Gives a shift of 0.002... looks like a bit higher shift could be good
             #    dlambda = lambda w: 0.975*np.max(w[1:]-w[:-1])  <---- Gives a shift of 0.004... not sure if it fits or not...
-            regs.new_region_in(at, 6219.01, 6219.53, dlambda = lambda w: 0.972*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 6219.01, 6219.53, dlambda = lambda w: 0.972*np.max(w[1:] - w[:-1])),
             
             # Line at: 6240.63 or [6240.64] or 6240.65
             # CANDIDATES: (NOT SURE WHICH ONE IS BEST, BUT THE FIRST ONE HAS BETTER CHI SQUARED THEN THE LATTER!!!)
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift = 0.008
             #    dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])      <---- shift = 0.006
-#            regs.new_region_in(at, 6240.44, 6240.84, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 6240.44, 6240.84, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])),
             
             # Line at: 6481.85 or 6481.86 or [6481.87] (maybe: 6481.8 to 6481.9)
-            # (CAN MAYBE CHANGE WAVELENGTH A LITTLE)
-            regs.new_region_in(at, 6481.87 - 0.25, 6481.87 + 0.25, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1]), interp_obs = False),
+            # SHOULD POSSIBLY TRY AND PUSH THE SHIFT TO 0.004, WHICH MIGHT FIT BETTER! (KEYWORD IS MIGHT!)
+            regs.new_region_in(at, 6481.87 - 0.25, 6481.87 + 0.25, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1])),
             
             # Line at: 6498.93 or 6498.94 (maybe: 6498.9 to 6498.97)
             # Currently we get a shift of about: 0.004 Å
-            regs.new_region_in(at, 6498.938 - 0.3, 6498.938 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 6498.938 - 0.3, 6498.938 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1])),
 
             # Line at: 6581.19 or 6581.2 (maybe: 6581.18 to 6581.22)
             # Think this line has blending problems!!!!
-#            regs.new_region_in(at, 6581.28 - 0.3, 6581.28 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 6581.28 - 0.3, 6581.28 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1])),
 
             # Line at: 6667.7 or 6667.71 (maybe: 6667.68 to 6667.74)
-#            regs.new_region_in(at, , , interp_obs = False),
+#            regs.new_region_in(at, , ),
 
             # Line at: 6699.11 or 6699.12 or 6699.13 or 6699.14 or 6699.15
-#            regs.new_region_in(at, , , interp_obs = False),
+#            regs.new_region_in(at, , ),
 
             # Line at: 6739.5 or 6739.51 or 6739.52 (maybe: 6739.48 to 6739.53)
-#            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 6739.518 - 0.25, 6739.518 + 0.25, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
             
             # Line at: 5329.98 or 5329.98
             # BLENDING: MIGHT NOT BE RELIABLE?
-#            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.93*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 5329.987 - 0.10, 5329.987 + 0.30, dlambda = lambda w: 0.93*np.max(w[1:] - w[:-1])),
 
             # Line at: 5778.44 or 5778.45            
-            regs.new_region_in(at, 5778.45 - 0.2, 5778.45 + 0.2, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5778.45 - 0.2, 5778.45 + 0.2, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
             
             # Line at: 5701.53 or 5701.54 or 5701.55
-            regs.new_region_in(at, 5701.54 - 0.3, 5701.54 + 0.3, dlambda = lambda w: np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5701.54 - 0.3, 5701.54 + 0.3, dlambda = lambda w: np.max(w[1:] - w[:-1])),
             
             # Line at: 6836.99 or 6837 or 6837.01
             # REFINE
-            regs.new_region_in(at, 6837 - 0.2, 6837 + 0.2, dlambda = lambda w: 0.967*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 6837 - 0.2, 6837 + 0.2, dlambda = lambda w: 0.967*np.max(w[1:] - w[:-1])),
             
             # Line at: 5253.4617
             # REFINE
-            regs.new_region_in(at, 5253.4617 - 0.25, 5253.4617 + 0.25, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5253.4617 - 0.25, 5253.4617 + 0.25, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])),
             
             # Line at: 5412.7833
             # REFINE
-            regs.new_region_in(at, 5412.7833 - 0.2, 5412.7833 + 0.2, dlambda = lambda w: 0.95*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5412.7833 - 0.2, 5412.7833 + 0.2, dlambda = lambda w: 0.95*np.max(w[1:] - w[:-1])),
             
             # Line at: 6750.1510
-            regs.new_region_in(at, 6750.1510 - 0.3, 6750.1510 + 0.3, interp_obs = False),
+            regs.new_region_in(at, 6750.1510 - 0.3, 6750.1510 + 0.3),
             
             # Line at: 5705.4639
             # REFINE: WOULD BE BETTER IF IT COULD BE PUSHED 0.002 TO THE LEFT!!! (TO 0.008 FROM 0.006)
-            regs.new_region_in(at, 5705.4639 - 0.25, 5705.4639 + 0.25, dlambda = lambda w: 0.991*np.max(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5705.4639 - 0.25, 5705.4639 + 0.25, dlambda = lambda w: 0.991*np.max(w[1:] - w[:-1])),
             
             # Line at: 5956.6933
-            regs.new_region_in(at, 5956.6933 - 0.3, 5956.6933 + 0.3, dlambda = lambda w: np.mean(w[1:] - w[:-1]), interp_obs = False),
+            regs.new_region_in(at, 5956.6933 - 0.3, 5956.6933 + 0.3, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
             
             # **** STRONG LINES **** 6173.3339 6173.3347
-#            regs.new_region_in(at, 6173.3339 - 0.3, 6173.3339 + 0.3, interp_obs = False),
-#            regs.new_region_in(at, 6173.3347 - 0.3, 6173.3347 + 0.3, interp_obs = False),
+#            regs.new_region_in(at, 6173.3339 - 0.3, 6173.3339 + 0.3),
+#            regs.new_region_in(at, 6173.3347 - 0.3, 6173.3347 + 0.3),
             # Line at: 5232.93 or 5232.94 or 5232.95
             # CANDIDATES:
             #    dlambda = lambda w: 0.96*np.max(w[1:] - w[:-1])      <---- shift 0.002
             #    dlambda = lambda w: np.mean(w[1:] - w[:-1])          <---- shift 0.004   (best chi squared)
-#            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 5232.94 - 1.5, 5232.94 + 1.5, dlambda = lambda w: 0.955*np.max(w[1:] - w[:-1])),
             
             # Line at: 4957.29 or 4957.3 or 4957.31
-#            regs.new_region_in(at, 4957.3 - 1.5, 4957.3 + 1.5, interp_obs = False),
+#            regs.new_region_in(at, 4957.3 - 1.5, 4957.3 + 1.5),
             
             # Line at: 4890.74 or 4890.75 or 4890.76 or 4890.77
             # Regarding dlambda: The synthetic line should be shifted to the left, towards lower wavelengths. If dlambda is the mean wavelength difference
             # or higher the synthetic line is shifted towards the right (higher wavelengths). Meanwhile, if dlambda is the minimum wavelength difference
             # it is shifted too much to the left. As such, we can conclude that dlambda should be between the minimum and the mean wavelength difference.
-#            regs.new_region_in(at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1]), interp_obs = False),
+#            regs.new_region_in(at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])),
         ]
         initial_abunds = [
-            (-4.5, -4.55),
-            (-4.5, -4.45),
-            (-4.5, -4.45),
+            (-4.45, -4.47),
+            (-4.57, -4.59),
+            (-4.51, -4.53),
+            (-4.49, -4.5),
+            (-4.4, -4.41),
+            (-4.54, -4.55),
+            (-4.44, -4.45),
+            (-4.57, -4.58),
+            (-4.61, -4.62),
+            (-4.56, -4.57),
+            (-4.5, -4.51),
+            (-4.61, -4.62),
+            (-4.42, -4.3),
         ]
 
 # Get the continuum and normalized intensity
@@ -203,7 +213,7 @@ _print_regions(regions)
 #abunds = []
 #abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
 #abunds = -np.arange(4.1, 4.8, step = 0.005)
-abunds = -np.arange(4.1, 4.8, step = 0.01)
+abunds = -np.arange(4.1, 5.0, step = 0.001)
 
 def print_shifts(show_all = True):
     for r in result.region_result:
@@ -224,18 +234,29 @@ def print_shifts(show_all = True):
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_spectrum_para(CFG_FILE, wl, inten, regions, abunds, verbose = True, interp_obs = _MODE_INTERP_OBS)
+    result = synther.fit_spectrum_para(CFG_FILE, at, regions, abunds, verbose = True)
 finally:
     time_end = time.time()
 
 #print_shifts(show_all = False)
 
+def print_best2():
+    if not (_MODE_USE_SEEKING and initial_abunds):
+        raise Exception("No result from seeking mode")
+    best_abunds = []
+    for (chi2, a), fo in result2:
+        print("Region:", fo.reg)
+        print("    Best chisq:", chi2)
+        print("    Best abund:", a)
+        best_abunds.append(a)
+    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12, " (as 12 + mean)")
+    print("*** ", best_abunds)
+
 if _MODE_USE_SEEKING and initial_abunds:
     print("\n**********************")
     print("**** SEEKING MODE ****")
     print("**********************\n")
-    result2 = synther.fit_spectrum2(CFG_FILE, wl, inten, regions, initial_abunds, [0.01, 0.001, 0.0001], verbose = True)
-    print(result2)
+    result2 = synther.fit_spectrum_seeking(CFG_FILE, at, regions, initial_abunds, 0.001, verbose = True)
 
 def _calc_vel(delta_lambda, lambda_em):
     """
@@ -254,9 +275,13 @@ def print_best():
         print("")
         if r.best_abund != []:
             best_abunds.append(au.get_value(r.best_abund))
-    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12)
+        else:
+            print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
+            best_abunds.append(-4.5)
+    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12, " (as 12 + mean)")
     print("*** ", best_abunds)
-print_best()
+if _MODE_PRINT_BEST:
+    print_best()
 
 print("FIX THE FITTING PROBLEM!!! SOMETIMES THE SHIFT DEPENDS ON OTHER LINES THEN THE ONE IN QUESTION, WHICH SHOULD NOT HAPPEN!!!\n*********\n")
 if _MODE in {1, 2, 3}:
@@ -265,7 +290,6 @@ elif _MODE == -1:
     print("MODE:", _MODE, "       (REGIONS AND EVERYTHING COPIED FROM testshift.py)")
 else:
     print("MODE:", _MODE, "       (REGIONS SPECIFIED MANALLY!!!)")
-print("INTERPOLATING OBSERVED:", _MODE_INTERP_OBS)
 
 plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#11FF0A", "#AAAA00", "#00AAAA",
@@ -284,8 +308,6 @@ def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, sho
               "  steps: " + str(region_result.region.nlambda) +
               "  scale: " + str(region_result.region.scale_factor))
 #              "   Mode: " + str(_MODE) +
-#              "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
-#              "   Interp obs: " + str(_MODE_INTERP_OBS) +
 #              "   Region nr: " + str(region_nr))
 
     # Plot the synthetic spectrum
@@ -326,17 +348,7 @@ def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, sho
 
 def plot_spec(show_observed = True, show_unshifted = False):
     # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
-    plt.title("Mode: " + str(_MODE) +
- #             "   Fit spacing: " + str(_MODE_FIT_BEST_SPACING) +
-              "   Interp obs: " + str(_MODE_INTERP_OBS) +
-              "   Reg len: " + str(reg_length))
-
-    # Setup the color list
-#    color_list = ["#FF0000", "#00FF00", "#FF00FF",
-#                  "#11FF0A", "#AAAA00", "#00AAAA",
-#                  "#AF009F", "#0F3FF0", "#F0FA0F",
-#                  "#A98765", "#0152A3", "#0FFFF0",
-#                  "#C0110C", "#0B0D0E", "#BDC0EB"]
+    plt.title("Mode: " + str(_MODE) + "   Reg len: " + str(reg_length))
 
     # Plot the regions
     for r in result.region_result:
@@ -431,6 +443,22 @@ def _conv(energy):
     Converts energy from 1/cm to eV
     """
     return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
+
+def print_best_eq(fit_data):
+    best_abunds = []
+    for f in fit_data:
+        print("Region:", f.region)
+        print("    Best eq width:", f.best_eq_width)
+        print("    Obs eq width: ", f.obs_eq_width)
+        print("    Diff:         ", f.best_diff)
+        print("    Abund:        ", f.best_abund)
+        print("")
+        if f.best_abund != []:
+            best_abunds.append(au.get_value(f.best_abund))
+        else:
+            print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
+            best_abunds.append(-4.5)
+    print("Mean abund:", np.mean(best_abunds), "    or:", 12 + np.mean(best_abunds), " (as 12 + mean)")
 
 #def _print_vel(dlambda):
 #    _, lambda_min = result.region_min()
