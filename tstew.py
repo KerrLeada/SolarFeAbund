@@ -26,31 +26,21 @@ _MODE_FIT_BEST_SPACING = True
 _MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
 _MODE_USE_SEEKING = True
-_MODE_PRINT_BEST = False
+_MODE_PRINT_BEST = True
+_MODE_SHOW_REGIONS = True
+_MODE_VERBOSE = True
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
 
 # Read the cfg file
 CFG_FILE = "data/lines.cfg"
-cfg_data = cfg.read_cfg(CFG_FILE)
-
-# Set the region length (used in automatic mode)
-reg_length = 0.6
-
-# Get the wavelengths from the CFG file
-cfg_wav = np.array(cfg.get_column(cfg_data, "wav", dtype = float))
-reg_wav0 = cfg_wav - reg_length/2.0
 
 # Get the atlas
 at = sa.satlas()
 
 # Get the regions
 regions = regfile.regions
-
-# Get the continuum and normalized intensity
-cont = cont_atlas[0]
-inten = inten_raw / inten_raw.max()
 
 def _print_regions(regions):
     """
@@ -60,7 +50,8 @@ def _print_regions(regions):
     for r in regions:
         print(r)
     print("*** END REGIONS ***")
-_print_regions(regions)
+if _MODE_SHOW_REGIONS:
+    _print_regions(regions)
 
 # Create the abundencies (default not included)
 #abunds = []
@@ -71,7 +62,7 @@ abunds = -np.arange(4.1, 5.0, step = 0.01)
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_width(CFG_FILE, at, regions, abunds, verbose = True)
+    result = synther.fit_width(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
 
@@ -82,23 +73,30 @@ def _calc_vel(delta_lambda, lambda_em):
     """
     return delta_lambda*300000.0/lambda_em
 
-def print_best(fit_data):
+def print_best():
     best_abunds = []
-    for f in fit_data:
-        print("Region:", f.region)
-        print("    Best eq width:", f.best_eq_width)
-        print("    Obs eq width: ", f.obs_eq_width)
-        print("    Diff:         ", f.best_diff)
-        print("    Abund:        ", f.best_abund)
+    for r in result.region_result:
+        print("Region:", r.region)
+        print("    Best eq width:", r.best_eq_width)
+        print("    Obs eq width: ", r.obs_eq_width)
+        print("    Diff:         ", r.best_diff)
+        print("    Abund:        ", r.best_abund)
         print("")
-        if f.best_abund != []:
-            best_abunds.append(_au.get_value(f.best_abund))
+        if r.best_abund != []:
+            best_abunds.append(au.get_value(r.best_abund))
         else:
             print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
             best_abunds.append(-4.5)
     print("Mean abund:", np.mean(best_abunds), "    or:", 12 + np.mean(best_abunds), " (as 12 + mean)")
 if _MODE_PRINT_BEST:
     print_best()
+
+def print_ew():
+    for r in result.region_result:
+        print("Region:   ", r.region)
+        print("    Eq. width:", r.best_eq_width)
+        print("    Observed: ", r.obs_eq_width)
+        print("")
 
 def plot_diff(region_nr):
     regres = result.region_result[region_nr]
@@ -107,10 +105,13 @@ def plot_diff(region_nr):
 def plot_bisect(region_nr, abund_filter = None, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
     plotting.plot_bisect(result.region_result[region_nr], abund_filter = abund_filter, offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, num = num)
 
-def countpts(lambda0, lambda_end, wav):
+def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     """
-    Counts the number of data points in wav between lambda0 and lambda_end.
+    Counts the number of data points in wav between lambda0 and lambda_end. If wav is not given, the data from the
+    atlas in the given region will be used as default.
     """
+    if wav == None:
+        wav, _, _ = at.getatlas(lambda0 - padding, lambda_end + padding, cgs = True)
     return len(wav[(lambda0 <= wav) & (wav <= lambda_end)])
 
 def _conv(energy):

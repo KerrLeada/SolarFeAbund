@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import numpy as np
 import matplotlib.pyplot as _plt
 import abundutils as _au
 import satlas as _sa
@@ -178,3 +179,14 @@ def plot_around(lambda_mid, length, *args, **kwargs):
     Plots around the mid wavelenth
     """
     plot_in(lambda_mid - length, lambda_mid + length, *args, **kwargs)
+
+def plot_delta(y, x = None, *args, **kwargs):
+    """
+    Plots the changes in y between data points.
+    """
+    dy = y[1:] - y[:-1]
+    if x == None:
+        x = np.arange(len(dy))
+    _plt.plot(x, dy, ".", *args, **kwargs)
+    _plt.show()
+

@@ -365,7 +365,6 @@ def _parallel_fit(conn, cfg_file, atlas, regions, abunds, elem, use_default_abun
 def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, verbose = False):
     # Split up the abundencies between processes
     abund_range = list(abund_range)
-    print(processes)
     abunds = [[] for _ in range(processes)]
     abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
     for i in range(processes):

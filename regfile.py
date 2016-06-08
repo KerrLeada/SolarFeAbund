@@ -1,7 +1,18 @@
+# -*- coding: utf8 -*-
+
+# ************************
+# NOTE ABOUT UNITS:
+# Whenever a unit labeled Å is used, it stands for "Ångström". In English this is sometimes
+# written "Angstom" and labeled "A" instead of "Å", since English lacks the latters "Å" and "ö".
+# ************************
+
 from __future__ import print_function
 
-# Get the atlas
+import numpy as np
+import regions as regs
 import satlas as _sa
+
+# Get the atlas
 _at = _sa.satlas()
 
 # Create the regions
@@ -59,7 +70,8 @@ regions = [
     regs.new_region_in(_at, 5956.6933 - 0.3, 5956.6933 + 0.3, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
 
     # **** STRONG LINES **** 6173.3339 6173.3347
-    #            regs.new_region_in(_at, 6173.3339 - 0.3, 6173.3339 + 0.3),
+    regs.new_region_in(_at, 6173.3339 - 0.25, 6173.3339 + 0.25, dlambda = lambda w: 1.01*np.mean(w[1:] - w[:-1])),
+    
     #            regs.new_region_in(_at, 6173.3347 - 0.3, 6173.3347 + 0.3),
     # Line at: 5232.93 or 5232.94 or 5232.95
     # CANDIDATES:
@@ -76,3 +88,16 @@ regions = [
     # it is shifted too much to the left. As such, we can conclude that dlambda should be between the minimum and the mean wavelength difference.
     #            regs.new_region_in(_at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])),
 ]
+
+def region_at(wavelength):
+    """
+    Gets the index of the region and the region at the given wavelength
+    """
+    found = None
+    for i, r in enumerate(regions):
+        if r.lambda0 <= wavelength and wavelength <= r.lambda_end:
+            found = i
+            break
+    if found == None:
+        raise Exception("No region found for wavelength " + str(wavelength))
+    return found, regions[i]

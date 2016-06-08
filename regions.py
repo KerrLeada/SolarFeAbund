@@ -84,6 +84,7 @@ class Region(object):
         self.nlambda = nlambda
         self.scale_factor = scale_factor
         self.lambda_end = lambda0 + dlambda*nlambda
+        self.lambda_mid = (lambda0 + self.lambda_end) / 2
         
         # Set nshift
         if nshift != None:
@@ -113,11 +114,12 @@ class Region(object):
     
     def __str__(self):
         return ("Region(lambda0 = " + str(self.lambda0) +
+                ", lambda_mid = " + str(self.lambda_mid) +
+                ", lambda_end = " + str(self.lambda_end) +
                 ", dlambda = " + str(self.dlambda) +
                 ", nlambda = " + str(self.nlambda) +
                 ", scale_factor = " + str(self.scale_factor) +
-                ", length = " + str(self.length) +
-                ", lambda_end = " + str(self.lambda_end) + ")")
+                ", length = " + str(self.length) + ")")
 
     def __eq__(self, other):
         return (self.inten_scale_factor == other.inten_scale_factor and
@@ -134,6 +136,12 @@ class Region(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+def calc_dwav(region):
+    """
+    Calculates the wavelength changes between the wavelengths in the observed data of a region.
+    """
+    return region.wav[1:] - region.wav[:-1]
 
 def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, cgs = True, nshift = None, nmul = None):
     """
