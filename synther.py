@@ -74,41 +74,30 @@ def _convolve(var, tr):
     fftresult = np.fft.irfft(conv)
     return fftresult[0:n]
 
-class RegionResult(object):
+class ChiRegionResult(object):
     """
     Represents the result within a region.
     """
 
-    def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_norm_factor, abund):
+    def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_scale_factor, abund):
         self.region = region
         self.wav = wav
         self.inten = inten
+        self.inten_scale_factor = inten_scale_factor
         self.shift = shift
         self.chisq = chisq
         self.shift_all = shift_all
         self.chisq_all = chisq_all
-        self.inten_norm_factor = inten_norm_factor
         self.abund = abund
         
-        i = np.argmin(chisq)
-        self.best_shift = shift[i]
-        self.best_chisq = chisq[i]
-        self.best_abund = abund[i]
+        best = np.argmin(chisq)
+        self.best_index = best
+        self.best_shift = shift[best]
+        self.best_chisq = chisq[best]
+        self.best_abund = abund[best]
     
-    def fuse_result(self, other):
+    def _fuse_result(self, other):
         # Make sure the regions are the same
-#        self_reg = self.region
-#        other_reg = other.region
-#        if (self_reg.inten_scale_factor != other_reg.inten_scale_factor or 
-#            self_reg.lambda0 != other_reg.lambda0 or
-#            self_reg.length != other_reg.length or
-#            self_reg.dlambda != other_reg.dlambda or
-#            self_reg.nlambda != other_reg.nlambda or
-#            self_reg.scale_factor != other_reg.scale_factor or
-#            self_reg.lambda_end != other_reg.lambda_end or
-#            self_reg.nshift != other_reg.nshift or
-#            self_reg.nmul != other_reg.nmul or
-#            not (np.array_equal(self.region.wav, other.region.wav) and np.array_equal(self.region.inten, other.region.inten))):
         if self.region != other.region:
             print(self.region)
             print(other.region)
@@ -119,18 +108,42 @@ class RegionResult(object):
         shift = np.concatenate((self.shift, other.shift), axis = 0)
         chisq = np.concatenate((self.chisq, other.chisq), axis = 0)
         chisq_all = np.concatenate((self.chisq_all, other.chisq_all), axis = 0)
-        inten_norm_factor = np.concatenate((self.inten_norm_factor, other.inten_norm_factor), axis = 0)
+        inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
         
         # Concatenate the abundencies. Note that these are not numpy arrays but ordinary python lists,
         # so self.abund + other.abund means concatenation and not elementwise addition.
         abund = self.abund + other.abund
         
         # Return the fused result
-        return RegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_norm_factor, abund)
+        return ChiRegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_scale_factor, abund)
+
+class EWRegionResult(object):
+    """
+    Encapsulates the result of a fit using equivalent width
+    """
+    def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund):
+        # Store the data
+        self.region = region
+        self.wav = wav
+        self.inten = inten
+        self.inten_scale_factor = inten_scale_factor
+        self.obs_eq_width = obs_eq_width
+        self.eq_width = eq_width
+        self.diff = diff
+        self.abund = abund
+        
+        # Get the best values
+        best = np.argmin(abs(diff))
+        self.best_index = best
+        self.best_inten = inten[best,:]
+        self.best_inten_scale_factor = inten_scale_factor[best]
+        self.best_eq_width = eq_width[best]
+        self.best_diff = diff[best]
+        self.best_abund = abund[best]
 
 class SynthResult(object):
     """
-    Encapsulates the result of a fitted specrum synthesis
+    Encapsulates the result of a fitted specrum synthesis, using chi squared.
     """
     
     def __init__(self, region_result, region_data, wav, raw_synth_data):
@@ -139,21 +152,32 @@ class SynthResult(object):
         self.wav = wav
         self.raw_synth_data = raw_synth_data
     
-    def fuse_result(self, other):
-        # Fuse the region results
-        region_result = []
-        for r1, r2 in zip(self.region_result, other.region_result):
-            region_result.append(r1.fuse_result(r2))
-        if len(self.region_result) > len(other.region_result):
-            region_result.extend(self.region_result[len(other.region_result):])
-        elif len(self.region_result) < len(other.region_result):
-            region_result.extend(other.region_result[len(self.region_result):])
-            
-        #
-        raw_synth_data = self.raw_synth_data + other.raw_synth_data
-        
-        #
-        return SynthResult(region_result, self.region_data, self.wav, raw_synth_data)
+def _fuse_chi_result(result1, result2):
+    """
+    Fuses two results of a fit, assuming it was done with the chi squared method
+    """
+    
+    if not np.array_equal(result1.region_data, result2.region_data):
+        raise Exception("Region data must be the same for result1 and result2")
+    if not np.array_equal(result1.wav, result2.wav):
+        raise Exception("Wavelength data must be the same for result1 and result2")
+    
+    # Fuse the region results
+    region_result = []
+    for r1, r2 in zip(result1.region_result, result2.region_result):
+        region_result.append(r1._fuse_result(r2))
+    if len(result1.region_result) > len(result2.region_result):
+        region_result.extend(result1.region_result[len(result2.region_result):])
+    elif len(result1.region_result) < len(result2.region_result):
+        region_result.extend(result2.region_result[len(result1.region_result):])
+
+    # Append the raw data of result2 after result1 (note that since raw_synth_data are
+    # python lists + means concatenation and not elementwise addition, as would be the
+    # case if they where arrays)
+    raw_synth_data = result1.raw_synth_data + result2.raw_synth_data
+    
+    # Return the fused result
+    return SynthResult(region_result, result1.region_data, result1.wav, raw_synth_data)
 
 def _synth(s, m):
     """
@@ -221,7 +245,6 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
         # 2. What's "tw"?
         # 3. What's the different
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-#        print("*** tw:\n", tw, "\n***\n")
         
         # WHAT IS THIS AND WHAT DOES IT DO???
         #
@@ -232,8 +255,6 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
-#        psf = _gaussian(tw, [1.0, 0.0, 1.83*6302.0/300000.0])
-#        print("*** gaussian:\n", psf, "\n***\n")
         
         # For each abundence
         rwav_all = []
@@ -247,9 +268,9 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
             rwav, rspec = r.get_contained(wav, spec, left_padding = 1e-9)
 #            print("*** rwav:\n", rwav, "\n***\n")
             
-            # Handle errors due to math with floating point numbers
+            # Handle errors due to math with floating point numbers and things like that
             if len(rwav) != nlambda:
-                print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - nlambda, "\n")
+#                print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - nlambda, "\n")
 #                print("*** rwav (len ", len(rwav), "):\n", rwav, "\n*** robs_wav: (len ", len(robs_wav), ")\n", robs_wav, "***\n", sep = "")
                 rwav = rwav[:nlambda]
                 rspec = rspec[:nlambda]
@@ -292,7 +313,7 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
             chisq[a] = ((robs_inten - isyn)**2).sum()
         
         #
-        region_result.append(RegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
+        region_result.append(ChiRegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
     return region_result
 
 def fit_spectrum(cfg_file, atlas, regions, abund_range, elem = "Fe", use_default_abund = True, verbose = False):
@@ -341,13 +362,7 @@ def _parallel_fit(conn, cfg_file, atlas, regions, abunds, elem, use_default_abun
     finally:
         conn.close()
 
-# JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
-_EVIL = None
-
 def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, verbose = False):
-    # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
-    global _EVIL
-    
     # Split up the abundencies between processes
     abund_range = list(abund_range)
     print(processes)
@@ -357,7 +372,6 @@ def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem
         si = i*abunds_per_process
         ei = (i + 1)*abunds_per_process
         abunds[i].extend(abund_range[si:ei])
-#        print("Abunds[", i, "] =\n", abunds[i], "\n***************")
 
     # Spawn the processes
     proc_list = []
@@ -376,13 +390,10 @@ def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem
         rec.close()
         p.join()
     
-    # JUST FOR DEBUGGING!!! REMOVE THIS LATER!!!
-    _EVIL = result_list
-    
     # Fuse the result together
     result = result_list[0]
     for r in result_list[1:]:
-        result = result.fuse_result(r)
+        result = _fuse_chi_result(result, r)
     
     # Return the fused result    
     return result
@@ -436,9 +447,9 @@ class _FitState(object):
         # Update the abundence and synth the line
         self.s.updateABUND(abund, verbose = self.verbose)
         spec = _synth(self.s, self.m)[0,0,0,:,0]
-        inten_max = spec.max()
+#        inten_max = spec.max()
 #        spec /= inten_max
-        self.inten_max.append(inten_max)
+#        self.inten_max.append(inten_max)
         
         # Get the wavelengths
         wav = self.s.getwav()
@@ -455,8 +466,8 @@ class _FitState(object):
 
         # Convolve the spectra
         rspec = _convolve(rspec, self.psf / self.psf.sum())
-        rspec /= rspec.max()
-    #            print("*** rspec:\n", rspec, "\n***\n")
+        self.inten_max.append(rspec.max())
+        rspec /= self.inten_max[-1]
         
         # Get the region of the atlas spectrum
         robs_wav = self.reg.wav
@@ -517,13 +528,13 @@ class _FitState(object):
         # Get the direction of the gradient
         graddir = np.sign(chisq1 - chisq2)
         if graddir == 0:
-            raise Exception("???")
+            raise Exception("Invalid starting abundencies")
  #       print("******* graddir =", graddir, " *******")
         
         #
 
     #    print("chisq1:", chisq1, "\nchisq2:", chisq2, "\ngraddir*(chisq1 - chisq2):", graddir*(chisq1 - chisq2), "\n")
-        found_it = False
+        found_minimum = False
         prev = (a1, a2)
     #    print("***** All da:", das)
         for da in das:
@@ -546,12 +557,12 @@ class _FitState(object):
 #                print("a1:", a1, "    a2:", a2, "    chisq1:", chisq1, "    chisq2:", chisq2, "    graddir:", graddir, "    dir:", np.sign(chisq1 - chisq2), "    graddir==dir:", graddir == np.sign(chisq1 - chisq2))
                 if graddir != np.sign(chisq1 - chisq2):
 #                    print("**** OLD a1:", a1, "   a2:", a2, "****")
-                    found_it = True
+                    found_minimum = True
                     break
 
  #       print("*** graddir:", graddir)
         
-        if not found_it:
+        if not found_minimum:
             print("!!!!!!!!!!!!!!!!!!!!!!!! Found no minimum !!!!!!!!!!!!!!!!!!!!!!!!")
 
         best_chisq = min(chisq1, chisq2)
@@ -609,30 +620,6 @@ def _equivalent_width(wav, inten, dlambda = None):
     # As such the equivalent width is given by ew = area/cont
     return abs(area/cont)
 
-class FitWidthResult(object):
-    """
-    Encapsulates the result of a fit using equivalent width
-    """
-    def __init__(self, region, wav, inten, inten_norm_factor, obs_eq_width, eq_width, diff, abund):
-        # Store the data
-        self.region = region
-        self.wav = wav
-        self.inten = inten
-        self.inten_norm_factor = inten_norm_factor
-        self.obs_eq_width = obs_eq_width
-        self.eq_width = eq_width
-        self.diff = diff
-        self.abund = abund
-        
-        # Get the best values
-        best = np.argmin(abs(diff))
-        self.best_index = best
-        self.best_inten = inten[best,:]
-        self.best_inten_norm_factor = inten_norm_factor[best]
-        self.best_eq_width = eq_width[best]
-        self.best_diff = diff[best]
-        self.best_abund = abund[best]
-
 def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
     """
     DOCUMENT THIS!!!
@@ -661,16 +648,12 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
 
-    #
+    # Get the spectrums for the abundencies and the wavelength
     spec = [sd[0,0,0,:,0] for sd in synth_data]
-    
-    #
     wav = s.getwav()
     
-    #
+    # "Fit" the data in each region using equivalent widths
     result = []
-    
-    #
     for ri, r in enumerate(regions):
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
         eq_width = np.zeros(len(abund_updates), dtype = np.float64)
@@ -686,21 +669,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions.
-        # IMPORTANT QUESTIONS:
-        # 1. Where does 1.83 km/s come from?
-        # 2. What's "tw"?
-        # 3. What's the different
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-#        print("*** tw:\n", tw, "\n***\n")
-        
-        # WHAT IS THIS AND WHAT DOES IT DO???
-        #
-        # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
-        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
-        # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
-        # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
-        # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
-        # ligh in km/s)
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
         
         for ai, a in enumerate(abund_updates):
@@ -722,5 +691,5 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
             eq_width[ai] = (_equivalent_width(rwav, rspec, dlambda = r.dlambda) * astropy.units.AA).to(eq_width_unit).value
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rspec
-        result.append(FitWidthResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
-    return result
+        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
+    return SynthResult(result, region_data, wav, synth_data)
