@@ -62,7 +62,7 @@ abunds = -np.arange(4.1, 5.0, step = 0.01)
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_width(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
+    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
 
