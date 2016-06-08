@@ -613,6 +613,29 @@ def fit_spectrum_seeking(cfg_file, atlas, regions, abunds, da, elem = "Fe", abun
         result.append((fs.fit(a, elem, da), fs))
     return result
 
+#def _equivalent_width(wav, inten, dlambda = None):
+#    # The continuum level should be the maximum intensity
+#    cont = inten.max()
+#
+#    # Calculate the area
+#    if dlambda == None:
+#        # If no dlambda was given, assume an uneven grid
+#        area = 0
+#        for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
+#            # Since we want the area of a line, we been to subtract the continuum level
+#            ia -= cont
+#            ib -= cont
+#            
+#            # Add the contribution of this part to the area
+#            area += (b - a)*(ia + ib)/2
+#    else:
+#        # If dlambda was given, use trapz from numpy instead to calculate the area
+#        area = np.trapz(inten - cont, x = wav, dx = dlambda)
+#
+#    # If ew is the equivalent width, we have that: cont*ew = area
+#    # As such the equivalent width is given by ew = area/cont
+#    return abs(area/cont)
+
 def _equivalent_width(wav, inten, dlambda = None):
     # The continuum level should be the maximum intensity
     cont = inten.max()
@@ -622,26 +645,33 @@ def _equivalent_width(wav, inten, dlambda = None):
         # If no dlambda was given, assume an uneven grid
         area = 0
         for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
-            # Since we want the area of a line, we been to subtract the continuum level
-            ia -= cont
-            ib -= cont
-            
             # Add the contribution of this part to the area
             area += (b - a)*(ia + ib)/2
     else:
         # If dlambda was given, use trapz from numpy instead to calculate the area
-        area = np.trapz(inten - cont, x = wav, dx = dlambda)
+        area = np.trapz(inten, x = wav, dx = dlambda)
+    
+    # If the area under the spectrum curve from wav[0] to wav[-1] is area, then the
+    # area of the line is: area_line = total_area - area
+    # where total_area is: total_area = continuum*(wav[-1] - wav[0])
+    # assuming the continuum is constant in the interval (or close enough to constant
+    # that it's not a too rough approximation to treat it as constant).
+    area_line = cont*(wav[-1] - wav[0]) - area
 
-    # If ew is the equivalent width, we have that: cont*ew = area
-    # As such the equivalent width is given by ew = area/cont
-    return abs(area/cont)
+    # If ew is the equivalent width, we have that: cont*ew = area_line
+    # As such the equivalent width is given by ew = area_line/cont
+    return abs(area_line/cont)
 
-def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
+def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
     """
     DOCUMENT THIS!!!
     (This function synthezises spectrums for different abundencies and regions and returns which ones "fit" the
      best, using equivalent widths)
     """
+    
+    # If no refinements where given, set them to an empty list
+    if refinements == None:
+        refinements = []
     
     # Create the abundancy updates and check them
     abund_updates = [au.abund(elem, a) for a in abund_range]
@@ -679,14 +709,16 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         # Get the region of the atlas spectrum
         robs_wav = r.wav
         robs_inten = r.inten
-        
-        # Calculate the equivalent width of the observed data
-        obs_ew = (_equivalent_width(robs_wav, robs_inten) * astropy.units.AA).to(eq_width_unit).value
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        
+        # Calculate the equivalent width of the observed data
+        if r in refinements:
+            robs_wav, robs_inten = regs.shrink(refinements[r][0], refinements[r][1], robs_wav, robs_inten)
+        obs_ew = (_equivalent_width(robs_wav, robs_inten) * astropy.units.AA).to(eq_width_unit).value
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
@@ -710,9 +742,9 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
     return SynthResult(result, region_data, wav, synth_data)
 
-def _parallel_width(conn, cfg_file, atlas, regions, abunds, eq_width_unit, elem, use_default_abund, verbose):
+def _parallel_width(conn, cfg_file, atlas, regions, abunds, refinements, eq_width_unit, elem, use_default_abund, verbose):
     try:
-        result = fit_width(cfg_file, atlas, regions, abunds, eq_width_unit, elem, use_default_abund, verbose)
+        result = fit_width(cfg_file, atlas, regions, abunds, refinements, eq_width_unit, elem, use_default_abund, verbose)
         conn.send(result)
     except:
         conn.send(None)
@@ -720,7 +752,7 @@ def _parallel_width(conn, cfg_file, atlas, regions, abunds, eq_width_unit, elem,
     finally:
         conn.close()
 
-def fit_width_para(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
+def fit_width_para(cfg_file, atlas, regions, abund_range, processes = 2, refinements = None, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
     # Split up the abundencies between processes
     abund_range = list(abund_range)
     abunds = [[] for _ in range(processes)]
@@ -735,7 +767,7 @@ def fit_width_para(cfg_file, atlas, regions, abund_range, processes = 2, eq_widt
     conns = []
     for a in abunds:
         rec, conn = mp.Pipe()
-        p = mp.Process(target = _parallel_width, args = (conn, cfg_file, atlas, regions, a, eq_width_unit, elem, use_default_abund, verbose))
+        p = mp.Process(target = _parallel_width, args = (conn, cfg_file, atlas, regions, a, refinements, eq_width_unit, elem, use_default_abund, verbose))
         p.start()
         proc_list.append(p)
         conns.append(rec)

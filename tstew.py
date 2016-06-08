@@ -40,7 +40,17 @@ CFG_FILE = "data/lines.cfg"
 at = sa.satlas()
 
 # Get the regions
-regions = regfile.regions
+regions = regfile.get_regions()
+
+# Refinements
+# Bad (relatively) regions:
+#       5253.4619
+#regfile.refine(regions, 6219.28, 0.1, 0.0)
+#regfile.refine(regions, , , 0.0)
+#refinements = {
+#    regfile.region_at(6219.28, regions): (0.1, 0.0),
+#}
+refinements = []
 
 def _print_regions(regions):
     """
@@ -54,24 +64,14 @@ if _MODE_SHOW_REGIONS:
     _print_regions(regions)
 
 # Create the abundencies (default not included)
-#abunds = []
-#abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
-#abunds = -np.arange(4.1, 4.8, step = 0.005)
 abunds = -np.arange(4.1, 5.0, step = 0.01)
 
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
+    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, refinements = refinements, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
-
-def _calc_vel(delta_lambda, lambda_em):
-    """
-    Calculates the velocity that corresponds to a doppler shift
-    with a given shift delta_lambda and an emitted wavelength lambda_em.
-    """
-    return delta_lambda*300000.0/lambda_em
 
 def print_best():
     best_abunds = []

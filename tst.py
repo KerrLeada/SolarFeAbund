@@ -39,7 +39,7 @@ CFG_FILE = "data/lines.cfg"
 at = sa.satlas()
 
 # Get the regions
-regions = regfile.regions
+regions = regfile.get_regions()
 initial_abunds = [
     (-4.45, -4.47),
     (-4.57, -4.59),

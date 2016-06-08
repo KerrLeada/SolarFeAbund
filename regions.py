@@ -84,7 +84,6 @@ class Region(object):
         self.nlambda = nlambda
         self.scale_factor = scale_factor
         self.lambda_end = lambda0 + dlambda*nlambda
-        self.lambda_mid = (lambda0 + self.lambda_end) / 2
         
         # Set nshift
         if nshift != None:
@@ -111,10 +110,48 @@ class Region(object):
         Returns the parts of wav and inten contained within this region.
         """
         return get_within(self.lambda0, self.lambda_end, wav, inten, left_padding = left_padding, right_padding = right_padding)
+
+    def copy(self):
+        reg = Region(self.lambda0, self.wav, self.inten, self.dlambda, self.nlambda, scale_factor = self.scale_factor)
+        reg.inten_scale_factor = self.inten_scale_factor
+        return reg
+   
+    def refine(self, left, right, dlambda = None, nlambda = None):
+        reg = self.copy()
+        lambda0 = reg.lambda0 + left
+        lambda_end = reg.lambda_end - right
+        wav, inten = get_within(lambda0, lambda_end, reg.wav, reg.inten)
+        inten_max = inten.max()
+        
+        if nlambda == None:
+            nlambda = wav.size
+        elif hasattr(dlambda, "__call__"):
+            nlambda = nlambda(reg, wav)
+        else:
+            raise Exception("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ")
+        
+        if dlambda == None:
+            dlambda = reg.dlambda
+        elif hasattr(dlambda, "__call__"):
+            dlambda = dlambda(reg, wav)
+        
+        if lambda0 + dlambda*nlambda > lambda_end + dlambda/100:
+            raise Exception("jiaduiduWUHDUQIWNiawsu")
+        
+        reg.lambda0 = lambda0
+        reg.lambda_end = lambda_end
+        reg.inten_scale_factor = inten_max * reg.inten_scale_factor
+        reg.wav = wav
+        reg.inten = inten
+        reg.nlambda = nlambda
+        reg.dlambda = dlambda
+        reg.length = wav.size
+        
+        return reg
     
     def __str__(self):
         return ("Region(lambda0 = " + str(self.lambda0) +
-                ", lambda_mid = " + str(self.lambda_mid) +
+                ", lambda_mid = " + str((self.lambda0 + self.lambda_end) / 2) +
                 ", lambda_end = " + str(self.lambda_end) +
                 ", dlambda = " + str(self.dlambda) +
                 ", nlambda = " + str(self.nlambda) +
@@ -229,6 +266,8 @@ def get_within(lambda0, lambda_end, wav, inten, left_padding = 0.0, right_paddin
     interval = (lambda0 - left_padding <= wav) & (wav <= lambda_end + right_padding)
     return wav[interval], inten[interval]
 
+def shrink(left, right, wav, inten):
+    return get_within(wav[0] + left, wav[-1] - right, wav, inten)
 
 def _best_dlambda(wav0, length, nlambda, obs_wav):
     dlambda = []

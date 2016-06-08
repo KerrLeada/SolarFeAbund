@@ -16,7 +16,9 @@ import satlas as _sa
 _at = _sa.satlas()
 
 # Create the regions
-regions = [
+# Note that this list should (mostly) not be used directly
+# A copy is retrieved through the get_regions function
+_regions = [
     # Line at: 6301.5 Å
     regs.new_region_in(_at, 6301.18, 6301.82),
 
@@ -89,15 +91,26 @@ regions = [
     #            regs.new_region_in(_at, 4890.75 - 1.5, 4890.75 + 1.5, dlambda = lambda w: 0.97*np.max(w[1:] - w[:-1])),
 ]
 
-def region_at(wavelength):
+def get_regions():
+    """
+    Returns the regions
+    """
+    return list(_regions)
+
+def region_at(wavelength, region_list = _regions):
     """
     Gets the index of the region and the region at the given wavelength
     """
     found = None
-    for i, r in enumerate(regions):
+    for i, r in enumerate(region_list):
         if r.lambda0 <= wavelength and wavelength <= r.lambda_end:
             found = i
             break
     if found == None:
         raise Exception("No region found for wavelength " + str(wavelength))
-    return found, regions[i]
+    return found, region_list[i]
+
+def refine(region_list, wavelength, left, right, dlambda = None, nlambda = None):
+    i, r = region_at(wavelength, region_list = region_list)
+    region_list[i] = r.refine(left, right, dlambda = dlambda, nlambda = nlambda)
+
