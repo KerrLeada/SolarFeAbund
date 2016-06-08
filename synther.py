@@ -141,6 +141,23 @@ class EWRegionResult(object):
         self.best_diff = diff[best]
         self.best_abund = abund[best]
 
+    def _fuse_result(self, other):
+        # Make sure the regions are the same
+        if self.region != other.region:
+            print(self.region)
+            print(other.region)
+            raise Exception("Invalid region")
+
+        # Concatenate the numpy arrays, with the data from this result first
+        inten = np.concatenate((self.inten, other.inten), axis = 0)
+        inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
+        eq_width = np.concatenate((self.eq_width, other.eq_width), axis = 0)
+        diff = np.concatenate((self.diff, other.diff), axis = 0)
+        abund = np.concatenate((self.abund, other.abund), axis = 0)
+        
+        # Return a new region result
+        return EWRegionResult(self.region, self.wav, inten, inten_scale_factor, self.obs_eq_width, eq_width, diff, abund)
+
 class SynthResult(object):
     """
     Encapsulates the result of a fitted specrum synthesis, using chi squared.
@@ -352,7 +369,7 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, elem = "Fe", use_default
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
 
-def _parallel_fit(conn, cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose):
+def _parallel_chi(conn, cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose):
     try:
         result = fit_spectrum(cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose)
         conn.send(result)
@@ -377,7 +394,7 @@ def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem
     conns = []
     for a in abunds:
         rec, conn = mp.Pipe()
-        p = mp.Process(target = _parallel_fit, args = (conn, cfg_file, atlas, regions, a, elem, use_default_abund, verbose))
+        p = mp.Process(target = _parallel_chi, args = (conn, cfg_file, atlas, regions, a, elem, use_default_abund, verbose))
         p.start()
         proc_list.append(p)
         conns.append(rec)
@@ -692,3 +709,48 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
             sinten[ai,:] = rspec
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
     return SynthResult(result, region_data, wav, synth_data)
+
+def _parallel_width(conn, cfg_file, atlas, regions, abunds, eq_width_unit, elem, use_default_abund, verbose):
+    try:
+        result = fit_width(cfg_file, atlas, regions, abunds, eq_width_unit, elem, use_default_abund, verbose)
+        conn.send(result)
+    except:
+        conn.send(None)
+        raise
+    finally:
+        conn.close()
+
+def fit_width_para(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
+    # Split up the abundencies between processes
+    abund_range = list(abund_range)
+    abunds = [[] for _ in range(processes)]
+    abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
+    for i in range(processes):
+        si = i*abunds_per_process
+        ei = (i + 1)*abunds_per_process
+        abunds[i].extend(abund_range[si:ei])
+
+    # Spawn the processes
+    proc_list = []
+    conns = []
+    for a in abunds:
+        rec, conn = mp.Pipe()
+        p = mp.Process(target = _parallel_width, args = (conn, cfg_file, atlas, regions, a, eq_width_unit, elem, use_default_abund, verbose))
+        p.start()
+        proc_list.append(p)
+        conns.append(rec)
+    
+    # Join the processes
+    result_list = []
+    for rec, p in zip(conns, proc_list):
+        result_list.append(rec.recv())
+        rec.close()
+        p.join()
+    
+    # Fuse the result together
+    result = result_list[0]
+    for r in result_list[1:]:
+        result = _fuse_chi_result(result, r)
+    
+    # Return the fused result    
+    return result

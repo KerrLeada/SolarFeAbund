@@ -56,10 +56,6 @@ initial_abunds = [
     (-4.42, -4.3),
 ]
 
-# Get the continuum and normalized intensity
-cont = cont_atlas[0]
-inten = inten_raw / inten_raw.max()
-
 def _print_regions(regions):
     """
     Prints the regions
