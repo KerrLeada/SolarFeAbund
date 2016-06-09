@@ -77,9 +77,9 @@ def print_best():
     best_abunds = []
     for r in result.region_result:
         print("Region:", r.region)
-        print("    Best eq width:", r.best_eq_width)
-        print("    Obs eq width: ", r.obs_eq_width)
-        print("    Diff:         ", r.best_diff)
+        print("    Best eq width:", r.best_eq_width[0], "+-", r.best_eq_width[1])
+        print("    Obs eq width: ", r.obs_eq_width[0], "+-", r.obs_eq_width[1])
+        print("    Diff:         ", r.best_diff[0], "+-", r.best_diff[1])
         print("    Abund:        ", r.best_abund)
         print("")
         if r.best_abund != []:

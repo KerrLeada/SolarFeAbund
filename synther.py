@@ -133,7 +133,7 @@ class EWRegionResult(object):
         self.abund = abund
         
         # Get the best values
-        best = np.argmin(abs(diff))
+        best = np.argmin(abs(diff[:,0]))
         self.best_index = best
         self.best_inten = inten[best,:]
         self.best_inten_scale_factor = inten_scale_factor[best]
@@ -662,6 +662,19 @@ def _equivalent_width(wav, inten, dlambda = None):
     # As such the equivalent width is given by ew = area_line/cont
     return abs(area_line/cont)
 
+def _calc_equivalent_width(wav, inten, refs, unitconv, dlambda = None):
+    ew = np.zeros(len(refs) + 1, dtype = np.float64)
+    ew[-1] = _equivalent_width(wav, inten, dlambda = dlambda)*unitconv
+    for i, dw in enumerate(refs):
+        cwav = wav[dw:-dw]
+        cinten = inten[dw:-dw]
+        ew[i] = _equivalent_width(cwav, cinten, dlambda = dlambda)*unitconv
+#    print("ew:", ew)
+#    print("mean ew:", np.mean(ew))
+#    print("std ew: ", np.std(ew))
+#    print("")
+    return np.mean(ew), np.std(ew)
+
 def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
     """
     DOCUMENT THIS!!!
@@ -672,6 +685,9 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
     # If no refinements where given, set them to an empty list
     if refinements == None:
         refinements = []
+    
+    #
+    conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
     
     # Create the abundancy updates and check them
     abund_updates = [au.abund(elem, a) for a in abund_range]
@@ -698,12 +714,15 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
     spec = [sd[0,0,0,:,0] for sd in synth_data]
     wav = s.getwav()
     
+    # Deviations
+    default_dev = [1,2]
+    
     # "Fit" the data in each region using equivalent widths
     result = []
     for ri, r in enumerate(regions):
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
-        eq_width = np.zeros(len(abund_updates), dtype = np.float64)
-        diff = np.zeros(len(abund_updates), dtype = np.float64)
+        eq_width = np.zeros((len(abund_updates), 2), dtype = np.float64)
+        diff = np.zeros((len(abund_updates), 2), dtype = np.float64)
         sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
         
         # Get the region of the atlas spectrum
@@ -714,11 +733,12 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
         # due to convective motions.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        psf_sum = psf.sum()
         
         # Calculate the equivalent width of the observed data
-        if r in refinements:
-            robs_wav, robs_inten = regs.shrink(refinements[r][0], refinements[r][1], robs_wav, robs_inten)
-        obs_ew = (_equivalent_width(robs_wav, robs_inten) * astropy.units.AA).to(eq_width_unit).value
+#        if r in refinements:
+#            robs_wav, robs_inten = regs.shrink(refinements[r][0], refinements[r][1], robs_wav, robs_inten)
+        obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor)
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
@@ -731,13 +751,15 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
                 rspec = rspec[:r.nlambda]
 
             # Convolve the spectra
-            rspec = _convolve(rspec, psf / psf.sum())
+            rspec = _convolve(rspec, psf / psf_sum)
             inten_max[ai] = rspec.max()
+#            print("Shape rspec:", rspec.shape, "  Shape inten_max[ai]:", inten_max)
             rspec /= inten_max[ai]
             
             # Calculate the equivalent width
-            eq_width[ai] = (_equivalent_width(rwav, rspec, dlambda = r.dlambda) * astropy.units.AA).to(eq_width_unit).value
-            diff[ai] = eq_width[ai] - obs_ew
+            ew = _calc_equivalent_width(rwav, rspec, default_dev, conv_factor, dlambda = r.dlambda)
+            eq_width[ai] = ew
+            diff[ai] = (ew[0] - obs_ew[0], np.sqrt(ew[1]**2 + obs_ew[1]**2))
             sinten[ai,:] = rspec
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
     return SynthResult(result, region_data, wav, synth_data)

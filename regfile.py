@@ -74,6 +74,9 @@ _regions = [
     # **** STRONG LINES **** 6173.3339 6173.3347
     regs.new_region_in(_at, 6173.3339 - 0.25, 6173.3339 + 0.25, dlambda = lambda w: 1.01*np.mean(w[1:] - w[:-1])),
     
+    # Line at: 5232.9397
+    regs.new_region_in(_at, 5232.9397 - 1.0, 5232.9397 + 1.0, dlambda = lambda w: 0.9585*np.max(w[1:] - w[:-1])),
+    
     #            regs.new_region_in(_at, 6173.3347 - 0.3, 6173.3347 + 0.3),
     # Line at: 5232.93 or 5232.94 or 5232.95
     # CANDIDATES:
