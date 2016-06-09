@@ -121,7 +121,7 @@ class EWRegionResult(object):
     """
     Encapsulates the result of a fit using equivalent width
     """
-    def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund):
+    def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund, eq_width_unit):
         # Store the data
         self.region = region
         self.wav = wav
@@ -131,6 +131,7 @@ class EWRegionResult(object):
         self.eq_width = eq_width
         self.diff = diff
         self.abund = abund
+        self.eq_width_unit = eq_width_unit
         
         # Get the best values
 #        best = np.argmin(abs(diff[:,0]))
@@ -149,15 +150,18 @@ class EWRegionResult(object):
             print(other.region)
             raise Exception("Invalid region")
 
+        # Conversion factor, makes sure the unit of equivalent width of this object always wins over the other objects unit
+        conv_factor = (1 * other.eq_width_unit).to(self.eq_width_unit).value
+
         # Concatenate the numpy arrays, with the data from this result first
         inten = np.concatenate((self.inten, other.inten), axis = 0)
         inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
-        eq_width = np.concatenate((self.eq_width, other.eq_width), axis = 0)
-        diff = np.concatenate((self.diff, other.diff), axis = 0)
+        eq_width = np.concatenate((self.eq_width, other.eq_width*conv_factor), axis = 0)
+        diff = np.concatenate((self.diff, other.diff*conv_factor), axis = 0)
         abund = np.concatenate((self.abund, other.abund), axis = 0)
         
         # Return a new region result
-        return EWRegionResult(self.region, self.wav, inten, inten_scale_factor, self.obs_eq_width, eq_width, diff, abund)
+        return EWRegionResult(self.region, self.wav, inten, inten_scale_factor, self.obs_eq_width, eq_width, diff, abund, self.eq_width_unit)
 
 class SynthResult(object):
     """
@@ -763,7 +767,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
 #            obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor, refine_area = _calc_ref_area(robs_wav, robs_inten, refinements[ri]))
 #        else:
 #            obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor)
-        obs_ew = _equivalent_width(robs_wav, robs_inten)
+        obs_ew = _equivalent_width(robs_wav, robs_inten) * conv_factor
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
@@ -785,10 +789,10 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
 #            ew = _calc_equivalent_width(rwav, rspec, default_dev, conv_factor, dlambda = r.dlambda)
 #            eq_width[ai] = ew
 #            diff[ai] = (ew[0] - obs_ew[0], np.sqrt(ew[1]**2 + obs_ew[1]**2))
-            eq_width[ai] = _equivalent_width(rwav, rspec)
+            eq_width[ai] = _equivalent_width(rwav, rspec) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rspec
-        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
+        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates, eq_width_unit))
     return SynthResult(result, region_data, wav, synth_data)
 
 def _parallel_width(conn, cfg_file, atlas, regions, abunds, refinements, eq_width_unit, elem, use_default_abund, verbose):

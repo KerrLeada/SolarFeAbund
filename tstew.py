@@ -43,6 +43,8 @@ at = sa.satlas()
 regions = regfile.get_regions()
 
 # Refinements
+regfile.refine(regions, 6481.85, 0.07, 0.0)
+
 # Bad (relatively) regions:
 #       5253.4619
 #regfile.refine(regions, 6219.28, 0.1, 0.0)
