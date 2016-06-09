@@ -36,15 +36,17 @@ _regions = [
     regs.new_region_in(_at, 6219.01, 6219.53, dlambda = lambda w: 0.972*np.max(w[1:] - w[:-1])),
 
     # Line at: 6481.85 or 6481.86 or [6481.87] (maybe: 6481.8 to 6481.9)
-    # SHOULD POSSIBLY TRY AND PUSH THE SHIFT TO 0.004, WHICH MIGHT FIT BETTER! (KEYWORD IS MIGHT!)
-    regs.new_region_in(_at, 6481.87 - 0.25, 6481.87 + 0.25, dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1])),
+    # A SHIFT OF 0.004 SEEMS MAYBE BEST, GET IT WITH: dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1])
+    # IF A SHIFT OF 0.006 IS BETTER, USE: dlambda = lambda w: 0.98*np.max(w[1:] - w[:-1])
+    regs.new_region_in(_at, 6481.87 - 0.25, 6481.87 + 0.25, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1])),
 
     # Line at: 6498.93 or 6498.94 (maybe: 6498.9 to 6498.97)
     # Currently we get a shift of about: 0.004 Å
     regs.new_region_in(_at, 6498.938 - 0.3, 6498.938 + 0.3, dlambda = lambda w: 0.982*np.max(w[1:] - w[:-1])),
 
-    # Line at: 5778.44 or 5778.45            
+    # Line at: 5778.44 or 5778.45
     regs.new_region_in(_at, 5778.45 - 0.2, 5778.45 + 0.2, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
+#    regs.new_region_in(_at, 5778.45 - 0.18, 5778.45 + 0.18, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
 
     # Line at: 5701.53 or 5701.54 or 5701.55
     regs.new_region_in(_at, 5701.54 - 0.3, 5701.54 + 0.3, dlambda = lambda w: np.max(w[1:] - w[:-1])),
@@ -72,7 +74,8 @@ _regions = [
     regs.new_region_in(_at, 5956.6933 - 0.3, 5956.6933 + 0.3, dlambda = lambda w: np.mean(w[1:] - w[:-1])),
 
     # **** STRONG LINES **** 6173.3339 6173.3347
-    regs.new_region_in(_at, 6173.3339 - 0.25, 6173.3339 + 0.25, dlambda = lambda w: 1.01*np.mean(w[1:] - w[:-1])),
+#    regs.new_region_in(_at, 6173.3339 - 0.25, 6173.3339 + 0.25, dlambda = lambda w: 1.01*np.mean(w[1:] - w[:-1])),
+    regs.new_region_in(_at, 6173.3339 - 0.25, 6173.3339 + 0.22, dlambda = lambda w: 1.01*np.mean(w[1:] - w[:-1])),
     
     # Line at: 5232.9397
     regs.new_region_in(_at, 5232.9397 - 1.0, 5232.9397 + 1.0, dlambda = lambda w: 0.9585*np.max(w[1:] - w[:-1])),

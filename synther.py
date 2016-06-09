@@ -133,7 +133,8 @@ class EWRegionResult(object):
         self.abund = abund
         
         # Get the best values
-        best = np.argmin(abs(diff[:,0]))
+#        best = np.argmin(abs(diff[:,0]))
+        best = np.argmin(abs(diff))
         self.best_index = best
         self.best_inten = inten[best,:]
         self.best_inten_scale_factor = inten_scale_factor[best]
@@ -636,20 +637,41 @@ def fit_spectrum_seeking(cfg_file, atlas, regions, abunds, da, elem = "Fe", abun
 #    # As such the equivalent width is given by ew = area/cont
 #    return abs(area/cont)
 
-def _equivalent_width(wav, inten, dlambda = None):
+def _trapz(x, y):
+    area = 0
+    for xa, xb, ya, yb in zip(x[:-1], x[1:], y[:-1], y[1:]):
+        # Add the contribution of this part to the area
+        area += (xb - xa)*(ya + yb)/2
+    return area
+
+def _calc_ref_area(wav, inten, interval):
+    wav_start, wav_end = interval
+    rwav, rinten = regs.get_within(wav_start, wav_end, wav, inten)
+    area = np.trapz(rinten, x = rwav)
+    area_interp = (wav_end - wav_start)*(rinten[0] + rinten[-1])/2
+#    area_interp = np.trapz(np.interp(rwav, [rwav[0], rwav[-1]], [rinten[0], rinten[-1]]), x = rwav)
+    return area_interp - area
+
+#def _equivalent_width(wav, inten, dlambda = None, refine_area = None):
+def _equivalent_width(wav, inten):
     # The continuum level should be the maximum intensity
     cont = inten.max()
 
     # Calculate the area
-    if dlambda == None:
+#    if dlambda == None:
         # If no dlambda was given, assume an uneven grid
-        area = 0
-        for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
-            # Add the contribution of this part to the area
-            area += (b - a)*(ia + ib)/2
-    else:
-        # If dlambda was given, use trapz from numpy instead to calculate the area
-        area = np.trapz(inten, x = wav, dx = dlambda)
+#        area = 0
+#        for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
+#            # Add the contribution of this part to the area
+#            area += (b - a)*(ia + ib)/2
+#        area = _trapz(wav, inten)
+#    else:
+#        # If dlambda was given, use trapz from numpy instead to calculate the area
+#        area = np.trapz(inten, x = wav, dx = dlambda)
+    area = np.trapz(inten, x = wav)
+#    if refine_area != None:
+#        print("Area:", area, "    Refinement area:", refine_area)
+#        area -= refine_area
     
     # If the area under the spectrum curve from wav[0] to wav[-1] is area, then the
     # area of the line is: area_line = total_area - area
@@ -662,18 +684,14 @@ def _equivalent_width(wav, inten, dlambda = None):
     # As such the equivalent width is given by ew = area_line/cont
     return abs(area_line/cont)
 
-def _calc_equivalent_width(wav, inten, refs, unitconv, dlambda = None):
-    ew = np.zeros(len(refs) + 1, dtype = np.float64)
-    ew[-1] = _equivalent_width(wav, inten, dlambda = dlambda)*unitconv
-    for i, dw in enumerate(refs):
-        cwav = wav[dw:-dw]
-        cinten = inten[dw:-dw]
-        ew[i] = _equivalent_width(cwav, cinten, dlambda = dlambda)*unitconv
-#    print("ew:", ew)
-#    print("mean ew:", np.mean(ew))
-#    print("std ew: ", np.std(ew))
-#    print("")
-    return np.mean(ew), np.std(ew)
+#def _calc_equivalent_width(wav, inten, refs, unitconv, dlambda = None, refine_area = None):
+#    ew = np.zeros(len(refs) + 1, dtype = np.float64)
+#    ew[-1] = _equivalent_width(wav, inten, dlambda = dlambda, refine_area = refine_area)*unitconv
+#    for i, dw in enumerate(refs):
+#        cwav = wav[dw:-dw]
+#        cinten = inten[dw:-dw]
+#        ew[i] = _equivalent_width(cwav, cinten, dlambda = dlambda, refine_area = refine_area)*unitconv
+#    return np.mean(ew), np.std(ew)
 
 def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_width_unit = astropy.units.pm, elem = "Fe", use_default_abund = True, verbose = False):
     """
@@ -683,8 +701,8 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
     """
     
     # If no refinements where given, set them to an empty list
-    if refinements == None:
-        refinements = []
+#    if refinements == None:
+#        refinements = []
     
     #
     conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
@@ -715,14 +733,17 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
     wav = s.getwav()
     
     # Deviations
-    default_dev = [1,2]
+#    default_dev = [1,2,3,4,5]
+#    default_dev = []
     
     # "Fit" the data in each region using equivalent widths
     result = []
     for ri, r in enumerate(regions):
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
-        eq_width = np.zeros((len(abund_updates), 2), dtype = np.float64)
-        diff = np.zeros((len(abund_updates), 2), dtype = np.float64)
+#        eq_width = np.zeros((len(abund_updates), 2), dtype = np.float64)
+#        diff = np.zeros((len(abund_updates), 2), dtype = np.float64)
+        eq_width = np.zeros(len(abund_updates), dtype = np.float64)
+        diff = np.zeros(len(abund_updates), dtype = np.float64)
         sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
         
         # Get the region of the atlas spectrum
@@ -738,7 +759,11 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
         # Calculate the equivalent width of the observed data
 #        if r in refinements:
 #            robs_wav, robs_inten = regs.shrink(refinements[r][0], refinements[r][1], robs_wav, robs_inten)
-        obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor)
+#        if ri in refinements:
+#            obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor, refine_area = _calc_ref_area(robs_wav, robs_inten, refinements[ri]))
+#        else:
+#            obs_ew = _calc_equivalent_width(robs_wav, robs_inten, default_dev, conv_factor)
+        obs_ew = _equivalent_width(robs_wav, robs_inten)
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
@@ -757,9 +782,11 @@ def fit_width(cfg_file, atlas, regions, abund_range, refinements = None, eq_widt
             rspec /= inten_max[ai]
             
             # Calculate the equivalent width
-            ew = _calc_equivalent_width(rwav, rspec, default_dev, conv_factor, dlambda = r.dlambda)
-            eq_width[ai] = ew
-            diff[ai] = (ew[0] - obs_ew[0], np.sqrt(ew[1]**2 + obs_ew[1]**2))
+#            ew = _calc_equivalent_width(rwav, rspec, default_dev, conv_factor, dlambda = r.dlambda)
+#            eq_width[ai] = ew
+#            diff[ai] = (ew[0] - obs_ew[0], np.sqrt(ew[1]**2 + obs_ew[1]**2))
+            eq_width[ai] = _equivalent_width(rwav, rspec)
+            diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rspec
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates))
     return SynthResult(result, region_data, wav, synth_data)

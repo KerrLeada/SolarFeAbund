@@ -47,10 +47,11 @@ regions = regfile.get_regions()
 #       5253.4619
 #regfile.refine(regions, 6219.28, 0.1, 0.0)
 #regfile.refine(regions, , , 0.0)
+#regfile.refine(regions, 6481.86, 0.05, 0.0)
 #refinements = {
-#    regfile.region_at(6219.28, regions): (0.1, 0.0),
+#    14: (5232.43, 5232.55),
 #}
-refinements = []
+#refinements = []
 
 def _print_regions(regions):
     """
@@ -69,7 +70,7 @@ abunds = -np.arange(4.1, 5.0, step = 0.01)
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, refinements = refinements, verbose = _MODE_VERBOSE)
+    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
 
@@ -77,9 +78,12 @@ def print_best():
     best_abunds = []
     for r in result.region_result:
         print("Region:", r.region)
-        print("    Best eq width:", r.best_eq_width[0], "+-", r.best_eq_width[1])
-        print("    Obs eq width: ", r.obs_eq_width[0], "+-", r.obs_eq_width[1])
-        print("    Diff:         ", r.best_diff[0], "+-", r.best_diff[1])
+#        print("    Best eq width:", r.best_eq_width[0], "+-", r.best_eq_width[1])
+#        print("    Obs eq width: ", r.obs_eq_width[0], "+-", r.obs_eq_width[1])
+#        print("    Diff:         ", r.best_diff[0], "+-", r.best_diff[1])
+        print("    Best eq width:", r.best_eq_width)
+        print("    Obs eq width: ", r.obs_eq_width)
+        print("    Diff:         ", r.best_diff)
         print("    Abund:        ", r.best_abund)
         print("")
         if r.best_abund != []:
