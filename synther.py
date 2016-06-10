@@ -340,7 +340,30 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
 
 def fit_spectrum(cfg_file, atlas, regions, abund_range, elem = "Fe", use_default_abund = True, verbose = False):
     """
-    This files synthesizes a spectrum and attempts to fit it to the given observed spectrum.
+    This function synthesizes a spectrum and attempts to fit it to the observed spectrum. The required arguments are
+    
+        cfg_file          : The name of the cfg file.
+
+        atlas             : An atlas object, which contains the observed spectrum.
+
+        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+
+        abund_range       : A range over the abundancies to synthezise the spectrum form.
+        
+    The optional arguments are
+
+        elem              : The element for which abund_range applies.
+                            Default is "Fe".
+
+        use_default_abund : Determines if the default abundance for the element should be calculated first.
+                            Default is True.
+        
+        verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
+                            Default is False.
+
+    Fitting is done by using chi squared to compare the observed and synthetic spectrum for the different regions. Essentially, if we have
+    a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
+    chi squared is then taken as the best value.
     """
     
     # Create the updates and check them
@@ -375,6 +398,13 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, elem = "Fe", use_default
     return SynthResult(region_result, region_data, wav, synth_data)
 
 def _parallel_chi(conn, cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose):
+    """
+    This function ensures that when the calculation is done, it is sent to the main process, and if an
+    error occured, it will not cause the main process to just wait forever. Instead None is sent back.
+    And the connection is always closed.
+    
+    Note that this function is used internally and should be considered private. Use at own risk.
+    """
     try:
         result = fit_spectrum(cfg_file, atlas, regions, abunds, elem, use_default_abund, verbose)
         conn.send(result)
@@ -384,7 +414,46 @@ def _parallel_chi(conn, cfg_file, atlas, regions, abunds, elem, use_default_abun
     finally:
         conn.close()
 
-def fit_spectrum_para(cfg_file, atlas, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, verbose = False):
+def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, elem = "Fe", use_default_abund = True, verbose = False):
+    """
+    This function synthesizes a spectrum and attempts to fit it to the observed spectrum, but distributes the work over several processes
+    rather then doing it directly. The required arguments are
+    
+        cfg_file          : The name of the cfg file.
+
+        atlas             : An atlas object, which contains the observed spectrum.
+
+        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+
+        abund_range       : A range over the abundancies to synthezise the spectrum form.
+        
+    The optional arguments are
+    
+        processes         : The amount of working processes.
+                            Default is 2.
+
+        elem              : The element for which abund_range applies.
+                            Default is "Fe".
+
+        use_default_abund : Determines if the default abundance for the element should be calculated first.
+                            Default is True.
+        
+        verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
+                            Default is False.
+
+    Fitting is done by using chi squared to compare the observed and synthetic spectrum for the different regions. Essentially, if we have
+    a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
+    chi squared is then taken as the best value.
+    
+    The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
+    different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
+    A / N different abundancies. When R and A are small the overhead of using multiple processes and coordinating them can make this slower
+    then just calling fit_spectrum. However, when A and R increases this parallel approach tends to save time since the calculations becomes
+    the bottleneck rather then the overhead of using multiple processes.
+    
+    Note that each processes is in essence calling fit_spectrum but for different abundancies.
+    """
+    
     # Split up the abundencies between processes
     abund_range = list(abund_range)
     abunds = [[] for _ in range(processes)]

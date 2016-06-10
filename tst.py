@@ -92,7 +92,7 @@ def print_shifts(show_all = True):
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_spectrum_para(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
+    result = synther.fit_spectrum_parallel(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
 
