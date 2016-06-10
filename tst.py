@@ -145,7 +145,11 @@ if _MODE_PRINT_BEST:
     print_best()
 
 def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, show_unshifted = False, obs_pad = 0.0):
-    plotting.plot_region(result.region_result[region_nr], offset = offset, alpha = alpha, show_observed = show_observed, show_unshifted = show_unshifted, obs_pad = obs_pad)
+    if show_unshifted:
+        shifts = result.region_result[region_nr].best_shift
+    else:
+        shifts = None
+    plotting.plot_region(result.region_result[region_nr], offset = offset, shifts = shifts, alpha = alpha, show_observed = show_observed, obs_pad = obs_pad)
 
 def plot_spec(show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
     # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
@@ -156,14 +160,13 @@ def plot_chisq(region_nr):
     regres = result.region_result[region_nr]
     plotting.plot_vs_abund(regres.abund, regres.chisq)
 
-def plot_bisect(region_nr, abund_filter = None, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
-    plotting.plot_bisect(result.region_result[region_nr], abund_filter = abund_filter, offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, num = num)
+def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
+    plotting.plot_bisect(result.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, num = num)
 
 def plot_dwav(region_nr):
     plotting.plot_delta(regions[region_nr].wav)
 
 if _MODE_SHOW_PLOTS:
-#    plot_region(-1, show_unshifted = _MODE_SHOW_UNSHIFTED)
     plot_spec(show_unshifted = _MODE_SHOW_UNSHIFTED)
 
 def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
