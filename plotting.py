@@ -68,11 +68,13 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
 
     # Plot the synthetic spectrum
     for a in range(region_result.inten.shape[0]):
-        # Unshifted
-        if shifts != None:
+        # Plot the unshifted spectrum
+        # Checking this way to avoid future issues with numpy, which will make an elementwise check if we checked this as: shifts != None
+        # Cannot check for just truthyness since numpy doesn't consider arrays to be "truthy" or "falsy".
+        if None != shifts:
             _plt.plot(region_result.wav + shifts[a], region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha_shifted, linestyle = "--")
         
-        # Shifted
+        # Plot the shifted spectrum
         _plt.plot(region_result.wav - offset, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha if a != region_result.best_index else alpha_best)
     
     # Show the observed spectrum
