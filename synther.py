@@ -23,8 +23,9 @@ _ELEMENT = "Fe"
 def _gaussian(x, p):
     """
     Gaussian function
-        x - x position
-        p - a tuple of (coeff, ?expected value?, ?FWHM?)
+        x : x position
+        p : a tuple of (coeff, ?expected value?, ?FWHM?)
+    DOCUMENT THIS!!!
     """
     sig = p[2] / (2.0*np.sqrt(2.0*np.log(2.0)))
     z = (x - p[1]) / sig
@@ -32,6 +33,7 @@ def _gaussian(x, p):
 
 def _convolve(var, tr):
     """
+    DOCIMENT THIS!!!
     """
     
     # Get the dimensions
@@ -134,7 +136,6 @@ class EWRegionResult(object):
         self.eq_width_unit = eq_width_unit
         
         # Get the best values
-#        best = np.argmin(abs(diff[:,0]))
         best = np.argmin(abs(diff))
         self.best_index = best
         self.best_inten = inten[best,:]
@@ -217,8 +218,9 @@ def _fuse_result(result_list):
 
 def _synth(s, m):
     """
-    Helper function that synthazises a line
+    Helper function that synthazises a line.
     """
+    
     return s.synth(m.ltau, m.temp, m.pgas, m.vlos, m.vturb, m.B, m.inc, m.azi, False)
 
 def _setup_regions(atlas, regions):
@@ -282,6 +284,7 @@ def _parallel_call(conn, func, args):
     
     Note that this function is used internally and should be considered private. Use at own risk.
     """
+    
     try:
         result = func(*args)
         conn.send(result)
@@ -350,6 +353,10 @@ def _parallel_calc(abund_range, processes, func, args):
     return _fuse_result(result_list)
 
 def _fit_regions(regions, wav, synth_data, abund_updates):
+    """
+    DOCUMENT THIS!!!
+    """
+    
     # Fit the data
     abund_count = len(abund_updates)
     
@@ -460,6 +467,10 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
     return region_result
 
 def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose):
+    """
+    DOCUMENT THIS!!!
+    """
+    
     # Create the updates and check them
     abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
     
@@ -475,7 +486,7 @@ def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose):
     # Generate the synthetic lines
     synth_data = []
     if use_default_abund:
-        abund_updates = au.empty_abund + abund_updates
+        abund_updates = au.EMPTY_ABUND + abund_updates
     for a in abund_updates:
         # Update the abundence and synthasize a new spectrum
         s.updateABUND(a, verbose = verbose)
@@ -504,7 +515,7 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
         
     The optional arguments are
 
-        use_default_abund : Determines if the default abundance for the element should be calculated first.
+        use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
@@ -545,7 +556,7 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
         processes         : The amount of working processes.
                             Default is 2.
 
-        use_default_abund : Determines if the default abundance for the element should be calculated first.
+        use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
@@ -572,6 +583,7 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     
     Note that each processes is in essence calling fit_spectrum but for different abundancies.
     """
+    
     regions = _setup_regions(atlas, regions)
     return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, use_default_abund, verbose))
 
@@ -599,6 +611,10 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
 #    return abs(area/cont)
 
 def _equivalent_width(wav, inten):
+    """
+    Calculates the equivalent width for a line obtained with the given wavelength and intensity.
+    """
+    
     # The continuum level should be the maximum intensity
     cont = inten.max()
 
@@ -618,6 +634,7 @@ def _equivalent_width(wav, inten):
 
 def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, verbose):
     """
+    DOCUMENT THIS!!!
     """
     
     # Convsersion factor
@@ -681,19 +698,12 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
             # Convolve the spectra
             rspec = _convolve(rspec, reduced_psf)
             inten_max[ai] = rspec.max()
-#            print("Shape rspec:", rspec.shape, "  Shape inten_max[ai]:", inten_max)
             rspec /= inten_max[ai]
             
             # Calculate the equivalent width
-#            ew = _calc_equivalent_width(rwav, rspec, default_dev, conv_factor, dlambda = r.dlambda)
-#            eq_width[ai] = ew
-#            diff[ai] = (ew[0] - obs_ew[0], np.sqrt(ew[1]**2 + obs_ew[1]**2))
             eq_width[ai] = _equivalent_width(rwav, rspec) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rspec
-#        print("*** ABUNDS ***")
-#        print(abund_updates)
-#        print("**************")
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates, eq_width_unit))
     return SynthResult(result, region_data, wav, synth_data)
 
@@ -714,7 +724,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
                             Default is astropy.units.pm, which stands for picometers.
 
-        use_default_abund : Determines if the default abundance for the element should be calculated first.
+        use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
@@ -732,6 +742,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
     
     There are other standards for abundance, so be sure the correct one is used.
     """
+    
     regions = _setup_regions(atlas, regions)
     return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, verbose)
 
@@ -755,7 +766,7 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
         eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
                             Default is astropy.units.pm, which stands for picometers.
 
-        use_default_abund : Determines if the default abundance for iron should be calculated first.
+        use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
@@ -782,7 +793,6 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     Note that each processes is in essence calling fit_spectrum but for different abundancies.
     """
     
-    #
     regions = _setup_regions(atlas, regions)
     return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, use_default_abund, verbose))
 

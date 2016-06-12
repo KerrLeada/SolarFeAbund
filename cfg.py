@@ -36,11 +36,9 @@ def read_cfg(filename):
             data = [x for x in l.split(" ") if len(x) > 0]
             if len(data) != len(_CFG_COLUMNS):
                 raise Exception("Row had length " + str(len(data)) + " but should have had length " + str(len(_CFG_COLUMNS)))
+            
             # Add the column data to the content
             content.append(data)
-#            print("\n ******** \n")
-#            for i in range(len(CFG_COLUMNS)):
-#                print(CFG_COLUMNS[i], ": ", data[i])
     return content
 
 def print_cfg(cfg_data):
@@ -73,6 +71,7 @@ def _split_at(sep, string):
     Splits the given string using the given separator. Empty strings and strings
     starting with # are not included in the result.
     """
+    
     result = string.split(sep)
     return [x for x in map(str.strip, result) if len(x) > 0 and not x.startswith("#")]
 
@@ -80,6 +79,7 @@ def format_read_cfg(source_filename, energy_eV = False):
     """
     KIND OF IMPLEMENTED, BUT NOT DOCUMENTED YET!
     """
+    
     with open(source_filename, "r") as source_file:
         content = source_file.read()
     
@@ -140,6 +140,7 @@ def create_cfg_file(source_filename, cfg_filename, reg_filename = None, energy_e
     """
     Creates a new cfg file from the given source file. The source file is handled by format_read_cfg.
     """
+    
     data, wav = format_read_cfg(source_filename, energy_eV = energy_eV)
     with open(cfg_filename, "w") as cfg_file:
         cfg_file.write(data)
@@ -153,4 +154,3 @@ def create_cfg_file(source_filename, cfg_filename, reg_filename = None, energy_e
         with open(reg_filename, "w") as reg_file:
             reg_file.write(reg_content)
 
-#print_cfg_file("data/lines.cfg")

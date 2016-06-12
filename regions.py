@@ -9,27 +9,6 @@ from __future__ import print_function
 import numpy as np
 import satlas as sa
 
-"""
-class _RegionBase
-    lambda0
-    lambda_end
-    dlambda
-    nlambda
-    scale_factor
-    def as_tuple(self):
-        ...
-    def get_contained(self, wav, inten):
-        ...
-
-class AtlasRegion(_RegionBase)
-    def get_data(self, atlas, obs_data):
-        uses the atlas to get the data
-
-class BlahRegion(_RegionBase)
-    def get_data(self, atlas, obs_data):
-        uses obs_data to get the data
-"""
-
 def _require_positive_int(obj, name):
     """
     Checks so obj is a positive integer, and throws an exception if it's not. The name of the object can

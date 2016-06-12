@@ -172,6 +172,7 @@ def plot_vs_abund(abund, values):
 
         values : An iterable of values.
     """
+    
     a = _au.list_abund(abund, default_val = -4.5)
     _plt.plot(a, values)
     _plt.show()
@@ -183,6 +184,7 @@ def plot_chisq(region_result):
         region_result : The region result from which the chi squared should be plotted. This will work
                         for an instance of ChiRegionResult, but not EWRegionResult.
     """
+    
     plot_vs_abund(region_result.abund, region_result.chisq)
 
 def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
@@ -279,6 +281,7 @@ def plot_around(lambda_mid, delta, *args, **kwargs):
                          
     Any additional parameters are passed on to the plotting function.
     """
+    
     plot_in(lambda_mid - delta, lambda_mid + delta, *args, **kwargs)
 
 def plot_delta(y, x = None, *args, **kwargs):
@@ -295,6 +298,7 @@ def plot_delta(y, x = None, *args, **kwargs):
     
     Any additional parameters are passed on to the plotting function.
     """
+    
     dy = y[1:] - y[:-1]
     if x == None:
         x = np.arange(len(dy))

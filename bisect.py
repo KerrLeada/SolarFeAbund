@@ -10,7 +10,17 @@ import numpy as np
 
 def get_bisection(x, y, num = 50):
     """
-    Gets the bisection of the curve given by x and y. The argument num specifies in how many points the bisection is calculated for, at most.
+    Gets the bisection of the curve given by x and y. The required arguments are
+    
+        x : The x values.
+        
+        y : The y values corresponding to the x values.
+    
+    The optional argument is
+    
+        num : Specifies how many points the bisection should be calculated in (at most).
+    
+    Note that if there are more or less then two x coordinates for a given y coordinate, it will be ignored.
     """
 
     # Make sure x and y have the same length
