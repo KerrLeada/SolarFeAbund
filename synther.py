@@ -3,12 +3,9 @@ This module contains the functions and classes that synthezises spectra. Specifi
 a single function and class.
 """
 
-# Imported for python 3 interoperability (also, the division import will make
-# division work as in python 3, where x / y always returns a float no matter
-# if x and y are integers or not... been bitten by the normal python 2 behaviour
-# so this helps).
+# Imported for python 3 interoperability
 from __future__ import print_function
-#from __future__ import division
+from __future__ import division
 
 # Imports
 import numpy as np
@@ -54,8 +51,8 @@ def _convolve(var, tr):
     # First: Pad "var"
     pvar = np.zeros(npad, dtype = np.float64)
     pvar[0:n] = var                 # First 0 to n (exclusive) values corresponds to the values in "var"
-    pvar[n:n + n1/2] = var[-1]      # The next n1/2 values are set to the last value of "var"
-    pvar[n + n1/2::] = var[0]       # The final n1/2 values are set to the first value of "var"
+    pvar[n:n + n1//2] = var[-1]      # The next n1/2 values are set to the last value of "var"
+    pvar[n + n1//2::] = var[0]       # The final n1/2 values are set to the first value of "var"
     
     # Padding "tr"
     ptr = np.zeros(npad, dtype = np.float64)
@@ -65,7 +62,7 @@ def _convolve(var, tr):
     #       The code breaks if it would be: off - n1/2
     #       This is because python rounds the number. In order to get python 3 interoperability,
     #       this should be fixed so it will work in both python 2 and python 3.
-    ptr = np.roll(ptr, -n1/2 + off)  #
+    ptr = np.roll(ptr, -n1//2 + off)  #
     
     # WHAT DOES THIS DO AND WHY??? EXPLAIN EACH STEP!!??!?!?!?
     pvar_fft = np.fft.rfft(pvar)
@@ -208,6 +205,10 @@ def _fuse_result2(result1, result2):
     return SynthResult(region_result, result1.region_data, result1.wav, raw_synth_data)
 
 def _fuse_result(result_list):
+    """
+    Fuses a list of results together.
+    """
+    
     # Fuse the result together
     result = result_list[0]
     for r in result_list[1:]:
@@ -221,6 +222,10 @@ def _synth(s, m):
     return s.synth(m.ltau, m.temp, m.pgas, m.vlos, m.vturb, m.B, m.inc, m.azi, False)
 
 def _setup_regions(atlas, regions):
+    """
+    Ensures all regions are instances of regions.Region. Regions on tuple form are converted.
+    """
+    
     # Setup the region data
     region_list = list(regions)
     for ri, r in enumerate(regions):
@@ -229,6 +234,18 @@ def _setup_regions(atlas, regions):
     return region_list
 
 def _setup_region_data(regions):
+    """
+    Creates a numpy array containing the region data. Specifically, each element in the array is
+    a tuple
+    
+        (lambda0, dlambda, nlambda, scale_factor)
+
+    where lambda0 is a float describing the wavelength the region starts at, dlambda is a float that
+    determines the length of each step, nlambda is an integer that determines how many steps are used
+    and scale_factor is a float that determines the scale of the synthetic data (specifically the
+    synthetic intensity).
+    """
+    
     # Copy the region list and setup an array with the region data
     region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
     for ri, r in enumerate(regions):
@@ -256,6 +273,81 @@ def _setup_region_data(regions):
 #                raise ValueError(err_msg)
 #            region_list[ri] = regs.new_region(atlas, *regions[ri])
 #    return region_list, region_data
+
+def _parallel_call(conn, func, args):
+    """
+    This function ensures that when the calculation is done, it is sent to the main process, and if an
+    error occured, it will not cause the main process to just wait forever. Instead None is sent back.
+    And the connection is always closed.
+    
+    Note that this function is used internally and should be considered private. Use at own risk.
+    """
+    try:
+        result = func(*args)
+        conn.send(result)
+    except:
+        conn.send(None)
+        raise
+    finally:
+        conn.close()
+
+def _parallel_calc(abund_range, processes, func, args):
+    """
+    The function distributes abundance calculations over processes, take their results, fuses them together
+    and returns that fused result. The required arguments are
+    
+        abund_range : The iron aundencies to distribute.
+        
+        processes   : The amount of processes to use.
+        
+        func        : The function that performs the calculations. Note that the function should take the abundance as first argument.
+        
+        args        : The arguments to the function, abundance excluded.
+
+    Returns a SynthResult object containing the result of all calculations.
+    """
+    
+    # Ensure the arguments are in the form of a tuple
+    args = tuple(args)
+    
+    # List the abundance range. By doing this, abund_range can be an iterator and the code will still work as
+    # long as it is not infinite. Otherwise it might break down since we need the length of abund_range as well
+    # as the ability to slice it in order to distribute the abundancies over the processes. This won't work
+    # in general for an iterator.
+    abund_range = list(abund_range)
+
+    # Distribute the abundances amongst the processes
+    abund_range = list(abund_range)
+    abunds = [[] for _ in range(processes)]
+    abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
+    for i in range(processes):
+        si = i*abunds_per_process
+        ei = (i + 1)*abunds_per_process
+        abunds[i].extend(abund_range[si:ei])
+
+    # Spawn the processes
+    proc_list = []
+    conns = []
+    for a in abunds:
+        # Concatenate the abundance and the rest of the arguments
+        curr_args = (a,) + args
+        
+        # Spawn the process
+        rec, conn = mp.Pipe()
+        p = mp.Process(target = _parallel_call, args = (conn, func, curr_args))
+        p.start()
+        proc_list.append(p)
+        conns.append(rec)
+    
+    # Join the processes
+    result_list = []
+    for rec, p in zip(conns, proc_list):
+        result_list.append(rec.recv())
+        rec.close()
+        p.join()
+    
+    # Fuse the results and return it   
+    return _fuse_result(result_list)
 
 def _fit_regions(regions, wav, synth_data, abund_updates):
     # Fit the data
@@ -305,6 +397,7 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
         # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
         # ligh in km/s)
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        reduced_psf = psf / psf.sum()
         
         # For each abundence
         rwav_all = []
@@ -327,7 +420,7 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
 
             # Convolve the spectra
 #            print("*** rspec max (before):", rspec.max(), "***\n")
-            rspec = _convolve(rspec, psf / psf.sum())
+            rspec = _convolve(rspec, reduced_psf)
             rspec /= rspec.max()
 #            print("*** rspec max (after): ", rspec.max(), "***\n")
         
@@ -405,7 +498,7 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -416,83 +509,23 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
                             Default is False.
+    
+    Returns a SynthResult object containing the result of all calculations.
 
     Fitting is done by using chi squared to compare the observed and synthetic spectrum for the different regions. Essentially, if we have
     a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
     chi squared is then taken as the best value.
+    
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    There are other standards for abundance, so be sure the correct one is used.
     """
     
     regions = _setup_regions(atlas, regions)
     return _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose)
-
-def _parallel_call(conn, func, args):
-    """
-    This function ensures that when the calculation is done, it is sent to the main process, and if an
-    error occured, it will not cause the main process to just wait forever. Instead None is sent back.
-    And the connection is always closed.
-    
-    Note that this function is used internally and should be considered private. Use at own risk.
-    """
-    try:
-        result = func(*args)
-        conn.send(result)
-    except:
-        conn.send(None)
-        raise
-    finally:
-        conn.close()
-
-def _parallel_calc(abund_range, processes, func, args):
-    """
-    The function distributes abundance calculations over processes, take their results, fuses them together
-    and returns that fused result. The required arguments are
-    
-        abund_range : The iron aundencies to distribute.
-        
-        processes   : The amount of processes to use.
-        
-        func        : The function that performs the calculations. Note that the function should take the abundance as first argument.
-        
-        args        : The arguments to the function, abundance excluded.
-
-    Returns a SynthResult object containing the result of all calculations.
-    """
-    
-    # Ensure the arguments are in the form of a tuple
-    args = tuple(args)
-
-    # Split up the abundencies between processes
-    abund_range = list(abund_range)
-    abunds = [[] for _ in range(processes)]
-    abunds_per_process = int(np.ceil(float(len(abund_range)) / float(processes)))
-    for i in range(processes):
-        si = i*abunds_per_process
-        ei = (i + 1)*abunds_per_process
-        abunds[i].extend(abund_range[si:ei])
-
-    # Spawn the processes
-    proc_list = []
-    conns = []
-    for a in abunds:
-        # Concatenate the abundance and the rest of the arguments
-        curr_args = (a,) + args
-        
-        # Spawn the process
-        rec, conn = mp.Pipe()
-        p = mp.Process(target = _parallel_call, args = (conn, func, curr_args))
-        p.start()
-        proc_list.append(p)
-        conns.append(rec)
-    
-    # Join the processes
-    result_list = []
-    for rec, p in zip(conns, proc_list):
-        result_list.append(rec.recv())
-        rec.close()
-        p.join()
-    
-    # Fuse the results and return it   
-    return _fuse_result(result_list)
 
 def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, use_default_abund = False, verbose = False):
     """
@@ -503,7 +536,7 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -523,6 +556,13 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     Fitting is done by using chi squared to compare the observed and synthetic spectrum for the different regions. Essentially, if we have
     a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
     chi squared is then taken as the best value.
+    
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    There are other standards for abundance, so be sure the correct one is used.
     
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
@@ -623,7 +663,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
         # due to convective motions.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
-        psf_sum = psf.sum()
+        reduced_psf = psf / psf.sum()
         
         # Calculate the equivalent width of the observed data
         obs_ew = _equivalent_width(robs_wav, robs_inten) * conv_factor
@@ -639,7 +679,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
                 rspec = rspec[:r.nlambda]
 
             # Convolve the spectra
-            rspec = _convolve(rspec, psf / psf_sum)
+            rspec = _convolve(rspec, reduced_psf)
             inten_max[ai] = rspec.max()
 #            print("Shape rspec:", rspec.shape, "  Shape inten_max[ai]:", inten_max)
             rspec /= inten_max[ai]
@@ -665,7 +705,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -684,6 +724,13 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
 
     Fitting is done by calculating the equivalent width of each region, both for the synthetic data and for the observed data. The abundance which
     gives the equivalent width that matches with the equivalent width of the observed data is taken as the best abundance.
+    
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    There are other standards for abundance, so be sure the correct one is used.
     """
     regions = _setup_regions(atlas, regions)
     return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, verbose)
@@ -697,7 +744,7 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form.
+        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -708,7 +755,7 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
         eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
                             Default is astropy.units.pm, which stands for picometers.
 
-        use_default_abund : Determines if the default abundance for the element should be calculated first.
+        use_default_abund : Determines if the default abundance for iron should be calculated first.
                             Default is False.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
@@ -718,6 +765,13 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
 
     Fitting is done by calculating the equivalent width of each region, both for the synthetic data and for the observed data. The abundance which
     gives the equivalent width that matches with the equivalent width of the observed data is taken as the best abundance.
+    
+    The iron abundances are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    There are other standards for abundance, so be sure the correct one is used.
     
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
