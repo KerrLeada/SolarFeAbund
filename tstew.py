@@ -24,11 +24,10 @@ from plotting import plot_in, plot_around
 # Used to quickly switch code
 _MODE_FIT_BEST_SPACING = True
 _MODE_SHOW_PLOTS = False
-_MODE_SHOW_UNSHIFTED = True
 _MODE_USE_SEEKING = True
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = True
-_MODE_VERBOSE = True
+_MODE_VERBOSE = False
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
@@ -72,7 +71,7 @@ abunds = -np.arange(4.1, 5.0, step = 0.01)
 # Synth the spectrum and attempt to fit it to the observed data
 time_start = time.time()
 try:
-    result = synther.fit_width_para(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
+    result = synther.fit_width_parallel(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
 
@@ -88,11 +87,12 @@ def print_best():
         print("    Diff:         ", r.best_diff)
         print("    Abund:        ", r.best_abund)
         print("")
-        if r.best_abund != []:
+        if [] != r.best_abund:
             best_abunds.append(au.get_value(r.best_abund))
         else:
             print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
             best_abunds.append(-4.5)
+    print(best_abunds)
     print("Mean abund:", np.mean(best_abunds), "    or:", 12 + np.mean(best_abunds), " (as 12 + mean)")
 if _MODE_PRINT_BEST:
     print_best()

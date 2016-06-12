@@ -42,7 +42,7 @@ def _require_positive_int(obj, name):
 
 class Region(object):
 #    def __init__(self, wav_start, wav_end, dlambda, nlambda = None, scale_factor = 1.0, cgs = True):
-    def __init__(self, lambda0, wav, inten, dlambda, nlambda, scale_factor = 1.0, nshift = None, nmul = None):
+    def __init__(self, lambda0, wav, inten, dlambda, nlambda, scale_factor = 1.0):
         """
         Constructor for Region objects. It is not recommeneded to use this constructor directly. The parameters are:
             lambda0 = starting wavelength
@@ -52,9 +52,6 @@ class Region(object):
             nlambda = amount of steps for synthezising a spectra
         Optional parameters:
             scale factor       = the scale factor for the synthesizing spectra
-            nshift             = a positive integer that determines how many shifts are used when trying to determine how shifted
-                                 a line is (default is 101)
-            nmul               = a positive integer that multiplies the nshift quantity (default is 1)
         """
         self.wav = wav
         self.inten_scale_factor = inten.max()
@@ -84,20 +81,6 @@ class Region(object):
         self.nlambda = nlambda
         self.scale_factor = scale_factor
         self.lambda_end = lambda0 + dlambda*nlambda
-        
-        # Set nshift
-        if nshift != None:
-            _require_positive_int(nshift, "nshift")
-            self.nshift = nshift
-        else:
-            self.nshift = 101
-        
-        # Set nmul
-        if nmul != None:
-            _require_positive_int(nmul, "nmul")
-            self.nmul = nmul
-        else:
-            self.nmul = 1
     
     def to_tuple(self):
         """
@@ -166,8 +149,6 @@ class Region(object):
                 self.nlambda == other.nlambda and
                 self.scale_factor == other.scale_factor and
                 self.lambda_end == other.lambda_end and
-                self.nshift == other.nshift and
-                self.nmul == other.nmul and
                 np.array_equal(self.wav, other.wav) and
                 np.array_equal(self.inten, other.inten))
 
@@ -180,7 +161,7 @@ def calc_dwav(region):
     """
     return region.wav[1:] - region.wav[:-1]
 
-def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, cgs = True, nshift = None, nmul = None):
+def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, cgs = True):
     """
     Creates a new region in the form of a Region object between lambda0 and lambda_end.
     """
@@ -198,9 +179,9 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         nlambda = wav.size
     
     # Return the new region
-    return Region(lambda0, wav, inten, dlambda, nlambda, scale_factor = scale_factor, nshift = nshift, nmul = nmul)
+    return Region(lambda0, wav, inten, dlambda, nlambda, scale_factor = scale_factor)
 
-def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, nshift = None, nmul = None, cgs = True):
+def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True):
     """
     Creates a region in Region form (use "region" to create in tuple form instead). The parameters are:
         atlas   = the atlas object
@@ -209,9 +190,6 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, nshift = No
         nlambda = the number of steps
     Optional parameters:
         scale_factor = the scale factor (used for normalization)
-        nshift             = a positive integer that determines how many shifts are used when trying to determine how shifted
-                             a line is (default is 101)
-        nmul               = a positive integer that multiplies the nshift quantity (default is 1)
     The end point can be found with: lambda_0 + dlambda*nlambda
     The return value is a tuple of the form:
         (lambda_0, dlambda, nlambda, scale_factor)
@@ -219,7 +197,7 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, nshift = No
     obs_wav, obs_inten, _ = atlas.getatlas(lambda0, lambda0 + dlambda*nlambda, cgs = cgs)
     if len(obs_wav) != nlambda:
         raise Exception("The observed data had a length " + str(len(obs_wav)) + " while nlambda was " + str(nlambda) + ". They must match.")
-    return Region(lambda0, obs_wav, obs_inten, dlambda, nlambda, scale_factor = scale_factor, nshift = nshift, nmul = nmul)
+    return Region(lambda0, obs_wav, obs_inten, dlambda, nlambda, scale_factor = scale_factor)
 
 def new_region_from(atlas, obj):
     if not isinstance(obj, Region):
