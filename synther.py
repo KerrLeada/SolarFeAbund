@@ -1,6 +1,6 @@
 """
-This module contains the functions and classes that synthezises spectra. Specifically
-a single function and class.
+This module contains the functions and classes that synthezises spectra for different iron abundances and fits them to
+the observed spectra.
 """
 
 # Imported for python 3 interoperability
@@ -16,8 +16,10 @@ import regions as regs
 import abundutils as au
 import multiprocessing as mp
 import astropy.units
+import os
 
-_MODEL_FILE = "data/falc_filled.nc"
+# Constants... as in, not really constants, but should probably never be modified during runtime
+DEFAULT_MODEL_FILE = "data/falc_filled.nc"
 _ELEMENT = "Fe"
 
 def _gaussian(x, p):
@@ -75,10 +77,77 @@ def _convolve(var, tr):
 
 class ChiRegionResult(object):
     """
-    Represents the result within a region.
+    ChiRegionResult is a class that represents result of a region, using chi squared to fit the synthetic
+    data to the observed data. The attributes are
+    
+        region                  : The region these results apply to. This is an instance of the regions.Region class.
+        
+        wav                     : An array of the synthetic wavelengths.
+        
+        inten                   : The synthetic intensities, for each abundance. It is a two dimensional array, where each
+                                  row corresponds to the synthetic intensities for an abundance. Note that the intensities
+                                  are scaled so that the maximum is 1. To get the unscaled intensities for an abundance, multiply
+                                  them with the corresponding scale factor, given in inten_scale_factor.
+        
+        shift                   : An array of the best shift for each abundance.
+        
+        chisq                   : The chi squared of each abundance, for the best shift. This is an
+        
+        shift_all               : A list of all shifts.
+        
+        chisq_all               : A list of the chi squared values for each shift and abundance. This is expected to be a two
+                                  dimensional structure, like a matrix, where each row correlates to an abundance. The content
+                                  of a row is the chi squared values for all the shifts, for the abundance in question.
+        
+        inten_scale_factor      : A list of the scale factors of each abundance.
+        
+        abund                   : A list of the abundances for which the synthetic data was synthezised.
+        
+        best_index              : The index of the best abundance.
+        
+        best_shift              : The best shift of the best abundance. This is essentially the shift corresponding to best_chisq
+                                  of the best abundance.
+        
+        best_chisq              : The best chi squared value of the best abundance. This is the lowest chi squared value for the
+                                  best abundance.
+        
+        best_abund              : The best abundance. This is the abundance with lowest chi squared value for its best shift.
+        
+        best_inten              : The best synthetic intensities of the best abundance.
+        
+        best_inten_scale_factor : The scale factor of the best synthetic intensities of the best abundance.
+        
+    The best values are all the values that corresponds to the best chi squared.
     """
 
     def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_scale_factor, abund):
+        """
+        ChiRegionResult is a class that represents result of a region, using chi squared to fit the synthetic
+        data to the observed data. This is the constructor. The arguments are
+        
+            region             : The region these results apply to. This is an instance of the regions.Region class.
+            
+            wav                : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
+            
+            inten              : The synthetic intensities, for each abundance. It should be a two dimensional array. The
+                                 rows represents the intensities of the different abundances. Note that the intensities
+                                 should be scaled so that the maximum is 1.
+            
+            shift              : A list of the best shift for each abundance.
+            
+            chisq              : The chi squared of each abundance, for the best shift.
+            
+            shift_all          : A list of all shifts.
+            
+            chisq_all          : A list of the chi squared values for each shift and abundance. This is a two dimensional
+                                 array where each row correlates to an abundance. The content of a row is the chi squared
+                                 values for all the shifts, for the abundance in question.
+            
+            inten_scale_factor : A list of the scale factors of each abundance.
+            
+            abund              : A list of the abundances for which the synthetic data was synthezised.
+        """
+        
         self.region = region
         self.wav = wav
         self.inten = inten
@@ -89,18 +158,26 @@ class ChiRegionResult(object):
         self.chisq_all = chisq_all
         self.abund = abund
         
+        # Get the best values. These are essentially the values that corresponds to a minimum
+        # chi squared.
         best = np.argmin(chisq)
         self.best_index = best
         self.best_shift = shift[best]
         self.best_chisq = chisq[best]
         self.best_abund = abund[best]
+        self.best_inten = inten[best]
+        self.best_inten_scale_factor = inten_scale_factor[best]
     
     def _fuse_result(self, other):
+        """
+        Fuses the result of this result with the other result. Essentially this assumes that the abundances of this result
+        are greater then the abundances of the other result, so that the other result can just be appended to the end of
+        this result (technically a new result is created, so neither this or the other result are modified).
+        """
+        
         # Make sure the regions are the same
         if self.region != other.region:
-            print(self.region)
-            print(other.region)
-            raise Exception("Invalid region")
+            raise Exception("Invalid regions")
 
         # Concatenate the numpy arrays, with the data from this result first
         inten = np.concatenate((self.inten, other.inten), axis = 0)
@@ -118,12 +195,78 @@ class ChiRegionResult(object):
 
 class EWRegionResult(object):
     """
-    Encapsulates the result of a fit using equivalent width
+    EWRegionResult is a class that represents result of a region, using the equivalent width to fit the synthetic
+    data to the observed data. The attributes are
+    
+        region                  : The region these results apply to. This is an instance of the regions.Region class.
+        
+        wav                     : The synthetic wavelengths. This is an array of one dimension, or of a similar type.
+        
+        inten                   : The synthetic intensities, for each abundance. It is a two dimensional array. The
+                                  rows represents the intensities of the different abundances. Note that the intensities
+                                  should be scaled so that the maximum is 1. To get  the unscaled intensity for an
+                                  abundance, multiply its intensity with the corresponding scale factor (which can
+                                  be obtained from the inten_scale_factor attribute)
+        
+        inten_scale_factor      : A list of the scale factors of each abundance. This is essentially the maximum unscaled
+                                  intensities for the abundances.
+        
+        obs_eq_width            : The equivalent width of the observed line.
+        
+        eq_width                : The equivalent widths of the synthetic lines of the different abundances. This is an array.
+        
+        diff                    : The differences between the observed and synthetic equivalent widths, for each abundance.
+                                  This is an array.
+        
+        abund                   : A list of the abundances for which the synthetic data was synthezised.
+        
+        eq_width_unit           : The unit of the equivalent width. This should come from astropy.units.
+        
+        best_index              : The index of the best values. This is essentially the index of the best abundance.
+        
+        best_inten              : The synthetic intensities of the best abundance.
+        
+        best_inten_scale_factor : The scale factor corresponding to the synthetic intensities of the best abundance.
+        
+        best_eq_width           : The equivalent width of the best abundance.
+        
+        best diff               : The difference between the equivalent widths of the synthetic and observed lines, for
+                                  the best abundance. Specifically, this is the smallest such difference and the best
+                                  abundance is simply the corresponding abundance.
+        
+        best_abund              : The best abundance. This is the abundance which has the smallest differenece between
+                                  the equivalent widths of the synthetic and observed lines.
+    
+    Note that the best values are the values for the abundance which has the smallest differenece between the equivalent widths
+    of the synthetic and observed lines.
     """
+    
     def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund, eq_width_unit):
-#        print("*** ABUNDS (EWRegionResult) ***")
-#        print(abund)
-#        print("*******************************")
+        """
+        EWRegionResult is a class that represents result of a region, using the equivalent width to fit the synthetic
+        data to the observed data. This is the constructor. The arguments are
+        
+            region             : The region these results apply to. This is an instance of the regions.Region class.
+            
+            wav                : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
+            
+            inten              : The synthetic intensities, for each abundance. It should be a two dimensional array. The
+                                 rows represents the intensities of the different abundances. Note that the intensities
+                                 should be scaled so that the maximum is 1.
+            
+            inten_scale_factor : A list of the scale factors of each abundance.
+            
+            obs_eq_width       : The equivalent width of the observed line.
+            
+            eq_width           : The equivalent widths of the synthetic lines of the different abundances.
+            
+            diff               : The differences between the observed and synthetic equivalent widths, for each abundance.
+            
+            abund              : A list of the abundances for which the synthetic data was synthezised.
+            
+            eq_width_unit      : The unit of the equivalent width. This should come from astropy.units.
+        """
+
         # Store the data
         self.region = region
         self.wav = wav
@@ -145,6 +288,12 @@ class EWRegionResult(object):
         self.best_abund = abund[best]
 
     def _fuse_result(self, other):
+        """
+        Fuses the result of this result with the other result. Essentially this assumes that the abundances of this result
+        are greater then the abundances of the other result, so that the other result can just be appended to the end of
+        this result (technically a new result is created, so neither this or the other result are modified).
+        """
+        
         # Make sure the regions are the same
         if self.region != other.region:
             print(self.region)
@@ -169,10 +318,34 @@ class EWRegionResult(object):
 
 class SynthResult(object):
     """
-    Encapsulates the result of a fitted specrum synthesis, using chi squared.
+    SynthResult encapsulates the result of a fit. This is the constructor. The arguments are
+        
+            region_result  : A list of region result objects. These are either instances of ChiRegionResult
+                             or EWRegionResult, depending on how the fit was done.
+            
+            region_data    : An array containing the region data used in the calculations. The elements in
+                             this array are tuples. Specifically they are regions on tuple form (see the
+                             regions module for more information).
+            
+            wav            : The wavelengths of the synthetic data.
+            
+            raw_synth_data : A list containing the raw synthetic data.
     """
     
     def __init__(self, region_result, region_data, wav, raw_synth_data):
+        """
+        SynthResult encapsulates the result of a fit. This is the constructor. The arguments are
+        
+            region_result  : A list of region result objects. These are either instances of ChiRegionResult
+                             or EWRegionResult, depending on how the fit was done.
+            
+            region_data    : An array containing the region data used in the calculations.
+            
+            wav            : The wavelengths of the synthetic data.
+            
+            raw_synth_data : A list containing the raw synthetic data.
+        """
+        
         self.region_result = region_result
         self.region_data = region_data
         self.wav = wav
@@ -254,28 +427,6 @@ def _setup_region_data(regions):
         region_data[ri] = r.to_tuple()
     return region_data
 
-#def _setup_regions(atlas, regions):
-#    # Setup the region data
-#    region_data = np.zeros(len(regions), dtype = "float64, float64, int32, float64")
-#    region_list = list(regions)
-#    for ri in range(len(regions)):
-#        if isinstance(regions[ri], regs.Region):
-#            region_data[ri] = regions[ri].to_tuple()
-#        else:
-#            try:
-#                region_data[ri] = regions[ri]
-#            except TypeError:
-#                err_msg = ("The given region was not in an acceptable tuple-like or Region form, and was of type " + type(region[ri]).__name__ +
-#                           ". Make sure the region has type Region or is a tuple-like object with 4 elements, of which the first, " +
-#                           "second and fourth is of type numpy.float64, and the third element has type numpy.int32. Normal floats and inte can also be used.")
-#                raise TypeError(err_msg)
-#            except ValueError:
-#                err_msg = ("The given tuple-like region was not in an acceptable form. It should have 4 elements of which the first, second " +
-#                           "and fourth are of type numpy.float64 while the third is of type numpy.int32. Normal floats and inte can also be used.")
-#                raise ValueError(err_msg)
-#            region_list[ri] = regs.new_region(atlas, *regions[ri])
-#    return region_list, region_data
-
 def _parallel_call(conn, func, args):
     """
     This function ensures that when the calculation is done, it is sent to the main process, and if an
@@ -352,12 +503,11 @@ def _parallel_calc(abund_range, processes, func, args):
     # Fuse the results and return it   
     return _fuse_result(result_list)
 
-def _fit_regions(regions, wav, synth_data, abund_updates):
+def _fit_regions(regions, wav, synth_data, abund_updates, verbose):
     """
-    DOCUMENT THIS!!!
+    Fits the regions of the synthetic data to the corresponding observed data
     """
     
-    # Fit the data
     abund_count = len(abund_updates)
     
     # A list of the chi sqaured values for each region
@@ -377,101 +527,93 @@ def _fit_regions(regions, wav, synth_data, abund_updates):
         rinten = []
         
         # Create an zeroed array of size (amount-of-abundencies,nshift) to store the chi squared for each abundance and for each shift
+        # within the current region.
         rchisq = np.zeros((abund_count,nshift), dtype = np.float64)
+        
+        # Create a zeroed array containing only the best chi squared values for each abundance, within the current region.
         chisq = np.zeros(abund_count, dtype = np.float64)
         
-        #
+        # Array containing the maximum synthetic intensities for each abundance
         inten_max = np.zeros(abund_count, dtype = np.float64)
         
-        # Get the region of the atlas spectrum
+        # Get the observed wavelengths and intensities in the current region
         robs_wav = r.wav
         robs_inten = r.inten
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
-        # due to convective motions.
-        # IMPORTANT QUESTIONS:
-        # 1. Where does 1.83 km/s come from?
-        # 2. What's "tw"?
-        # 3. What's the different
+        # due to convective motions. Specifically, it is used later on when convolving the synthetic data.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-        
-        # WHAT IS THIS AND WHAT DOES IT DO???
-        #
-        # THE LAST THING, 1.83*np.ceil(r.lambda_end)/300000.0, IS A GUESS THAT ORIGINATED FROM
-        # THAT THE EXAMPLES USED 6302.0 INSTEAD OF np.ceil(r.lambda_end), AND THE LATTER WOULD
-        # YIELD THE FIRST IF THE REGION IS THE SAME. BUT IT'S STILL JUST A GUESS!!! HAVE
-        # NO IDEA IF IT'S CORRECT OR NOT!!! IS IT CORRECT?
-        # (1.83 is some velocity in km/s related to convection and 300000.0 is the speed of
-        # ligh in km/s)
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
         reduced_psf = psf / psf.sum()
         
-        # For each abundence
+        # Create lists that contains all the wavelengths and intensities for the different abundances
+        # within the current region
         rwav_all = []
-        rspec_all = []
-        for a, spec in enumerate(synth_data):
-            #
-            spec = spec[0,0,0,:,0]
-            inten_max[a] = spec.max()
+        rsynth_inten_all = []
+
+        for a, synth_inten in enumerate(synth_data):
+            # Get the relevant synthetic intensity
+            synth_inten = synth_inten[0,0,0,:,0]
+            inten_max[a] = synth_inten.max()
             
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
-            rwav, rspec = r.get_contained(wav, spec, left_padding = 1e-9)
-#            print("*** rwav:\n", rwav, "\n***\n")
+            rwav, rsynth_inten = r.get_contained(wav, synth_inten, left_padding = 1e-9)
             
             # Handle errors due to math with floating point numbers and things like that
             if len(rwav) != nlambda:
-#                print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - nlambda, "\n")
-#                print("*** rwav (len ", len(rwav), "):\n", rwav, "\n*** robs_wav: (len ", len(robs_wav), ")\n", robs_wav, "***\n", sep = "")
+                if verbose:
+                    print("The length of the synthetic data in the region did not match nlambda. Length:", len(rwav), "  nlambda:", nlambda)
                 rwav = rwav[:nlambda]
-                rspec = rspec[:nlambda]
+                rsynth_inten = rsynth_inten[:nlambda]
 
-            # Convolve the spectra
-#            print("*** rspec max (before):", rspec.max(), "***\n")
-            rspec = _convolve(rspec, reduced_psf)
-            rspec /= rspec.max()
-#            print("*** rspec max (after): ", rspec.max(), "***\n")
+            # CHECK IF THIS DESCRIPTION IS CORRECT!!!
+            #
+            # Convolve the synthetic data. This is done to handle broadening effects due to convective motions in the
+            # solar atmosphere. These broadening effects has a Gaussian distribution, so to take it into account we
+            # need to calculate the convolution of the synthetic lines and the gaussian profile calculated above.
+            rsynth_inten = _convolve(rsynth_inten, reduced_psf)
+            rsynth_inten /= rsynth_inten.max()
         
-            # Store for later calculations
+            # Store the synthetic wavelengths and intensities in this region for later calculations
             rwav_all.append(rwav)
-            rspec_all.append(rspec)
+            rsynth_inten_all.append(rsynth_inten)
         
-            # For each shift
+            # Calculate the chi squared for each shift
             for ii in range(nshift):
-                # Interpolate the synthetic spectrum and shift it a little
-                # IMPORTANT QUESTION: Should I interoplate at "obs_wav" or at "wav"? Example does "wav" but that
-                #                     might not align properly due to inconsistent spacing between the wavelength
-                #                     data points in the atlas data.
-                #                     HOWEVER doing so gives the wrong result... the "best" shift becomes too large. WHY?
-                isyn = np.interp(rwav, rwav - shift[ii], rspec)
+                # To calculate the chi squared for each shift, we use interpolation to shift the synthetic
+                # data a little bit.
+                interp_syn = np.interp(rwav, rwav - shift[ii], rsynth_inten)
                 
                 # Calculate and store the chi squared
-                rchisq[a,ii] = ((robs_inten - isyn)**2).sum()
+                # Note that this assumes that the wavelengths of the observed data and the wavelengths of
+                # the synthetic (and thereby interpolated) data are the same. This is not really true, but
+                # the error is small enough that this should not matter too much.
+                rchisq[a,ii] = ((robs_inten - interp_syn)**2).sum()
             
             # Get and store the best shift
-#            best_indx = np.argmin(rchisq[a,:])
-#            chisq[a] = rchisq[a,best_indx]
-            ishift = shift[np.argmin(rchisq[a,:])]
-            rshift[a] = ishift
+            best_shift = shift[np.argmin(rchisq[a,:])]
+            rshift[a] = best_shift
             
-            # Calculate the shifted intensity spectrum (this is done using linear interpolation)
-            sinten = np.interp(rwav, rwav - ishift, rspec)
-            rinten.append(sinten)
+            # Calculate the shifted intensity spectrum using linear interpolation
+            shifted_inten = np.interp(rwav, rwav - best_shift, rsynth_inten)
+            rinten.append(shifted_inten)
 
-        # Calculate the chi squared for each abundence, for the best shift
-        for a, (rwav, rspec) in enumerate(zip(rwav_all, rspec_all)):
-            isyn = np.interp(rwav, rwav - rshift[a], rspec)
-            chisq[a] = ((robs_inten - isyn)**2).sum()
-        
-        #
+        # Calculate the chi squared for each abundance, for the best shift
+        for a, (rwav, rsynth_inten) in enumerate(zip(rwav_all, rsynth_inten_all)):
+            interp_syn = np.interp(rwav, rwav - rshift[a], rsynth_inten)
+            chisq[a] = ((robs_inten - interp_syn)**2).sum()
+
+        # Add the result of the current region to the list of region results
         region_result.append(ChiRegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
     return region_result
 
-def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose):
+def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file, verbose):
     """
-    DOCUMENT THIS!!!
+    Synthazises spectral lines and attempt to fit them to the observed data using the chi squared
+    method.
     """
     
-    # Create the updates and check them
+    # Create the abundance updates and check them
     abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
     
     # Copy the region list and setup an array with the region data
@@ -481,14 +623,13 @@ def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose):
     s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
 
     # Read a model
-    m = sp.model(_MODEL_FILE)
+    m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
     
     # Generate the synthetic lines
     synth_data = []
     if use_default_abund:
         abund_updates = au.EMPTY_ABUND + abund_updates
     for a in abund_updates:
-        # Update the abundence and synthasize a new spectrum
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
 
@@ -496,12 +637,12 @@ def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose):
     wav = s.getwav()
     
     # Fit the regions (kind of... technically this determines how to shift the regions and how well everything then fits)
-    region_result = _fit_regions(regions, wav, synth_data, abund_updates)
+    region_result = _fit_regions(regions, wav, synth_data, abund_updates, verbose)
     
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
 
-def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = False, verbose = False):
+def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = False, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum. The required arguments are
     
@@ -517,6 +658,9 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
 
         use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
+        
+        model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
+                            Default is None.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
                             Default is False.
@@ -536,9 +680,9 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
     """
     
     regions = _setup_regions(atlas, regions)
-    return _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, verbose)
+    return _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file, verbose)
 
-def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, use_default_abund = False, verbose = False):
+def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, use_default_abund = False, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum, but distributes the work over several processes
     rather then doing it directly. The required arguments are
@@ -558,6 +702,9 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
 
         use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
+        
+        model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
+                            Default is None.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
                             Default is False.
@@ -585,35 +732,18 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, use_default_abund, verbose))
-
-#def _equivalent_width(wav, inten, dlambda = None):
-#    # The continuum level should be the maximum intensity
-#    cont = inten.max()
-#
-#    # Calculate the area
-#    if dlambda == None:
-#        # If no dlambda was given, assume an uneven grid
-#        area = 0
-#        for a, b, ia, ib in zip(wav[:-1], wav[1:], inten[:-1], inten[1:]):
-#            # Since we want the area of a line, we been to subtract the continuum level
-#            ia -= cont
-#            ib -= cont
-#            
-#            # Add the contribution of this part to the area
-#            area += (b - a)*(ia + ib)/2
-#    else:
-#        # If dlambda was given, use trapz from numpy instead to calculate the area
-#        area = np.trapz(inten - cont, x = wav, dx = dlambda)
-#
-#    # If ew is the equivalent width, we have that: cont*ew = area
-#    # As such the equivalent width is given by ew = area/cont
-#    return abs(area/cont)
+    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, use_default_abund, model_file, verbose))
 
 def _equivalent_width(wav, inten):
     """
     Calculates the equivalent width for a line obtained with the given wavelength and intensity.
     """
+    
+    # Technically, the method chosen here is not always optimal since it is sensitive towards blends
+    # and such things. As such it should not be used when there are a lot of blended lines. However,
+    # most lines are "nice" so this might be sufficient. There is also a slight error caused by the
+    # use of the trapezoidal rule, which can be problematic if the resolution of the lines is too low.
+    # In this particular case, the resolution is high enough that this should not be a problem.
     
     # The continuum level should be the maximum intensity
     cont = inten.max()
@@ -632,15 +762,15 @@ def _equivalent_width(wav, inten):
     # As such the equivalent width is given by ew = area_line/cont
     return abs(area_line/cont)
 
-def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, verbose):
+def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose):
     """
-    DOCUMENT THIS!!!
+    Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
     """
     
     # Convsersion factor
     conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
     
-    # Create the abundancy updates and check them
+    # Create the abundance updates and check them
     abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
     
     # Setup the regions
@@ -650,7 +780,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
     s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
 
     # Read a model
-    m = sp.model(_MODEL_FILE)
+    m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
     
     # Synth the spectrum
     synth_data = []
@@ -660,24 +790,34 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
 
-    # Get the spectrums for the abundencies and the wavelength
-    spec = [sd[0,0,0,:,0] for sd in synth_data]
+    # Get the synthetic intensities for the abundances and the wavelength
+    synth_inten = [sd[0,0,0,:,0] for sd in synth_data]
     wav = s.getwav()
 
-    # "Fit" the data in each region using equivalent widths
+    # Fit the data in each region using equivalent widths
     result = []
     for ri, r in enumerate(regions):
+        # Create an array that will contain the maximum intensities of the different abundances, for
+        # this region.
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
+        
+        # Create an array that will contain the equivalent widths of the different abundances, for
+        # this region.
         eq_width = np.zeros(len(abund_updates), dtype = np.float64)
+        
+        # Create an array that will contain the differences between the equivalent widths of the
+        # synthetic and observed lines of the different abundances, for this region.
         diff = np.zeros(len(abund_updates), dtype = np.float64)
+        
+        # Create an array that will store the scaled and convolved synthetic intensities for each abundance.
         sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
         
-        # Get the region of the atlas spectrum
+        # Get the observed wavelengths and intensities of the region
         robs_wav = r.wav
         robs_inten = r.inten
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
-        # due to convective motions.
+        # due to convective motions. Specifically, it is used later on when convolving the synthetic data.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
         psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
         reduced_psf = psf / psf.sum()
@@ -687,27 +827,36 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
-            rwav, rspec = r.get_contained(wav, spec[ai], left_padding = 1e-9)
+            rwav, rsynth_inten = r.get_contained(wav, synth_inten[ai], left_padding = 1e-9)
             
             # Handle errors due to math with floating point numbers
             if len(rwav) != r.nlambda:
-                print("*** DAJSD(dj!!! :::: len(rwav) - nlambda =", len(rwav) - r.nlambda, "\n")
+                if verbose:
+                    print("******************")
+                    print("The length of the synthetic data in the region did not match nlambda.")
+                    print("Length of synthetic data:", len(rwav), ", nlambda:", nlambda)
+                    print("Region start:", r.lambda0, ", region end:", r.lambda_end)
+                    print("******************")
                 rwav = rwav[:r.nlambda]
-                rspec = rspec[:r.nlambda]
+                rsynth_inten = rsynth_inten[:r.nlambda]
 
-            # Convolve the spectra
-            rspec = _convolve(rspec, reduced_psf)
-            inten_max[ai] = rspec.max()
-            rspec /= inten_max[ai]
+            # CHECK IF THIS DESCRIPTION IS CORRECT!!!
+            #
+            # Convolve the synthetic data. This is done to handle broadening effects due to convective motions in the
+            # solar atmosphere. These broadening effects has a Gaussian distribution, so to take it into account we
+            # need to calculate the convolution of the synthetic lines and the gaussian profile calculated above.
+            rsynth_inten = _convolve(rsynth_inten, reduced_psf)
+            inten_max[ai] = rsynth_inten.max()
+            rsynth_inten /= inten_max[ai]
             
             # Calculate the equivalent width
-            eq_width[ai] = _equivalent_width(rwav, rspec) * conv_factor
+            eq_width[ai] = _equivalent_width(rwav, rsynth_inten) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
-            sinten[ai,:] = rspec
+            sinten[ai,:] = rsynth_inten
         result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates, eq_width_unit))
     return SynthResult(result, region_data, wav, synth_data)
 
-def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, use_default_abund = True, verbose = False):
+def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, use_default_abund = True, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum for different iron abundancies. The required arguments are
     
@@ -727,6 +876,9 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
         
+        model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
+                            Default is None.
+        
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
                             Default is False.
 
@@ -744,9 +896,9 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
     """
     
     regions = _setup_regions(atlas, regions)
-    return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, verbose)
+    return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose)
 
-def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, use_default_abund = False, verbose = False):
+def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, use_default_abund = False, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum for different iron abundancies. It does so in parallel, distributing
     the calculations over the given amount of processes. The required arguments are
@@ -768,6 +920,9 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
 
         use_default_abund : Determines if the default iron abundance should be used first.
                             Default is False.
+        
+        model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
+                            Default is None.
         
         verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
                             Default is False.
@@ -794,5 +949,5 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, use_default_abund, verbose))
+    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose))
 
