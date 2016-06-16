@@ -758,19 +758,12 @@ def _equivalent_width(wav, inten):
     # The continuum level should be the maximum intensity
     cont = inten.max()
 
-    # Calculate the area under the curve
-    area = np.trapz(inten, x = wav)
+    # Calculate the area of the line
+    area = np.trapz(cont - inten, x = wav)
     
-    # If the area under the spectrum curve from wav[0] to wav[-1] is area, then the
-    # area of the line is: area_line = total_area - area
-    # where total_area is: total_area = continuum*(wav[-1] - wav[0])
-    # assuming the continuum is constant in the interval (or close enough to constant
-    # that it's not a too rough approximation to treat it as constant).
-    area_line = cont*(wav[-1] - wav[0]) - area
-
-    # If ew is the equivalent width, we have that: cont*ew = area_line
-    # As such the equivalent width is given by ew = area_line/cont
-    return abs(area_line/cont)
+    # If ew is the equivalent width, we have that: cont*ew = area
+    # As such the equivalent width is given by ew = area/cont
+    return area / cont
 
 def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose):
     """
