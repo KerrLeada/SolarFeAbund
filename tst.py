@@ -160,8 +160,8 @@ def plot_chisq(region_nr):
     regres = result.region_result[region_nr]
     plotting.plot_vs_abund(regres.abund, regres.chisq)
 
-def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
-    plotting.plot_bisect(result.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, num = num)
+def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
+    plotting.plot_bisect(result.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, only_best_synth = only_best_synth, num = num)
 
 def plot_dwav(region_nr):
     plotting.plot_delta(regions[region_nr].wav)

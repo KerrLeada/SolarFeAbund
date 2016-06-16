@@ -27,7 +27,7 @@ _MODE_SHOW_PLOTS = False
 _MODE_USE_SEEKING = True
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = True
-_MODE_VERBOSE = False
+_MODE_VERBOSE = True
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value

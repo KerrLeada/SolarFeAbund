@@ -187,7 +187,7 @@ def plot_chisq(region_result):
     
     plot_vs_abund(region_result.abund, region_result.chisq)
 
-def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
+def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
     """
     Plots the bisection of the given region result. It is possible to plot this for both synthetic and observed data. By default both are shown.
 
@@ -195,23 +195,26 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         
     The optional arguments are
 
-        offset        : Offsets the synthetic spectrum. Positive values offsets it to the right while negative to the left.
-                        Default is 0.
+        offset          : Offsets the synthetic spectrum. Positive values offsets it to the right while negative to the left.
+                          Default is 0.
         
-        plot_observed : Determines if the bisection of the observed spectrum should be shown.
-                        Default is True.
+        plot_observed   : Determines if the bisection of the observed spectrum should be shown.
+                          Default is True.
         
-        plot_synth    : Determines if the bisection of the synthetic spectrum should be shown.
-                        Default is True.
+        plot_synth      : Determines if the bisection of the synthetic spectrum should be shown.
+                          Default is True.
         
-        show_observed : Determines if the observed spectrum should be shown.
-                        Default is True.
+        show_observed   : Determines if the observed spectrum should be shown.
+                          Default is True.
         
-        show_synth    : Determines if the synthetic spectrum should be shown.
-                        Default is True.
+        show_synth      : Determines if the synthetic spectrum should be shown.
+                          Default is True.
         
-        num           : The amount of points for which the bisection should be calculated.
-                        Default is 50.
+        only_best_synth : Determines if only the best fit synthetic spectrum should be shown.
+                          Default is False.
+        
+        num             : The amount of points for which the bisection should be calculated.
+                          Default is 50.
     
     Note that at least one of plot_observed or plot_synth must be true. Otherwise an exception is raised.
     """
@@ -223,7 +226,10 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
     if plot_synth:
         # Get the wavelengths
         rwav = region_result.wav
-        rinten_all = region_result.inten
+        if only_best_synth:
+            rinten_all = [region_result.best_inten]
+        else:
+            rinten_all = region_result.inten
         
         # Plot the bisections
         for a, rinten in enumerate(rinten_all):

@@ -22,6 +22,9 @@ import os
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
 _ELEMENT = "Fe"
 
+#
+_NSHIFT = 801
+
 def _gaussian(x, p):
     """
     Gaussian function
@@ -514,8 +517,15 @@ def _fit_regions(regions, wav, synth_data, abund_updates, verbose):
     region_result = []
     
     # Create shifts
-    nshift = 101
+    nshift = _NSHIFT
     shift = 0.2*(np.arange(nshift) / (nshift - 1.0)) - 0.1
+    
+    # Display some information, if in verbose mode
+    if verbose:
+        print("Number of regions to test:", len(regions))
+        print("Number of abundances to test:", len(abund_updates))
+        print("Number of shifts: ", nshift)
+        print("Shift step length:", shift[1]-shift[0])
 
     # For each region
     for ri, r in enumerate(regions):
@@ -762,7 +772,7 @@ def _equivalent_width(wav, inten):
     # As such the equivalent width is given by ew = area_line/cont
     return abs(area_line/cont)
 
-def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose):
+def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose):
     """
     Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
     """
@@ -784,11 +794,15 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund,
     
     # Synth the spectrum
     synth_data = []
-    if use_default_abund:
-        abund_updates = au.empty_abund + abund_updates
     for a in abund_updates:
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
+    
+    # Display the amount of abundances
+    if verbose:
+        print("Number of regions to test:", len(regions))
+        print("Number of abundances to test:", len(abund_updates))
+        print("Equivalent width unit:", eq_width_unit)
 
     # Get the synthetic intensities for the abundances and the wavelength
     synth_inten = [sd[0,0,0,:,0] for sd in synth_data]
@@ -898,7 +912,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
     regions = _setup_regions(atlas, regions)
     return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose)
 
-def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, use_default_abund = False, model_file = None, verbose = False):
+def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum for different iron abundancies. It does so in parallel, distributing
     the calculations over the given amount of processes. The required arguments are
@@ -917,9 +931,6 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
         
         eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
                             Default is astropy.units.pm, which stands for picometers.
-
-        use_default_abund : Determines if the default iron abundance should be used first.
-                            Default is False.
         
         model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
                             Default is None.
@@ -949,5 +960,5 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose))
+    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, model_file, verbose))
 
