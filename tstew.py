@@ -14,7 +14,6 @@ import fitting
 import astropy.constants
 import astropy.units
 import synther
-import abundutils as au
 import regfile
 import plotting
 from plotting import plot_in, plot_around
@@ -24,7 +23,6 @@ from plotting import plot_in, plot_around
 # Used to quickly switch code
 _MODE_FIT_BEST_SPACING = True
 _MODE_SHOW_PLOTS = False
-_MODE_USE_SEEKING = True
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = True
 _MODE_VERBOSE = True
@@ -76,7 +74,6 @@ finally:
     time_end = time.time()
 
 def print_best():
-    best_abunds = []
     for r in result.region_result:
         print("Region:", r.region)
 #        print("    Best eq width:", r.best_eq_width[0], "+-", r.best_eq_width[1])
@@ -87,13 +84,10 @@ def print_best():
         print("    Diff:         ", r.best_diff)
         print("    Abund:        ", r.best_abund)
         print("")
-        if [] != r.best_abund:
-            best_abunds.append(au.get_value(r.best_abund))
-        else:
-            print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
-            best_abunds.append(-4.5)
-    print(best_abunds)
-    print("Mean abund:", np.mean(best_abunds), "    or:", 12 + np.mean(best_abunds), " (as 12 + mean)")
+    print("Best abunds:", result.best_abunds)
+    print("Min abund: ", min(result.best_abunds), "     or:", min(result.best_abunds) + 12.0, " (as 12 + min abund)")
+    print("Max abund: ", max(result.best_abunds), "     or:", max(result.best_abunds) + 12.0, " (as 12 + max abund)")
+    print("Mean abund:", result.abund, "+-", result.error_abund, "     or:", result.abund + 12.0, "+-", result.error_abund, " (as 12 + mean abund)")
 if _MODE_PRINT_BEST:
     print_best()
 

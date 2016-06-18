@@ -35,7 +35,7 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
 
         shifts        : If not set to None, this plots a separate set of the synthetic data shifted by a given amount. If this is
                         a number, the synthetic data for every abundance is shifted by the same amount. If it is an iterable, that
-                        iterable must have the same length as the amount of abundancies in region_result. In that case each individual
+                        iterable must have the same length as the amount of abundances in region_result. In that case each individual
                         abundance will be shifted with the corresponding amount in shifts.
                         Default is None.
                          
@@ -167,7 +167,7 @@ def plot_vs_abund(abund, values):
     """
     Plots a quantity against the abundance. The arguments are
 
-        abund  : An iterable over abundencies. An individual abundance is expected to be in the same
+        abund  : An iterable over abundances. An individual abundance is expected to be in the same
                  form as if it was created with the function abundutils.abund.
 
         values : An iterable of values.
@@ -189,19 +189,19 @@ def plot_chisq(region_result):
 
 def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
     """
-    Plots the bisection of the given region result. It is possible to plot this for both synthetic and observed data. By default both are shown.
+    Plots the bisector of the given region result. It is possible to plot this for both synthetic and observed data. By default both are shown.
 
-        region_result : The region result for the region where the bisection is plotted.
+        region_result : The region result for the region where the bisector is plotted.
         
     The optional arguments are
 
         offset          : Offsets the synthetic spectrum. Positive values offsets it to the right while negative to the left.
                           Default is 0.
         
-        plot_observed   : Determines if the bisection of the observed spectrum should be shown.
+        plot_observed   : Determines if the bisector of the observed spectrum should be shown.
                           Default is True.
         
-        plot_synth      : Determines if the bisection of the synthetic spectrum should be shown.
+        plot_synth      : Determines if the bisector of the synthetic spectrum should be shown.
                           Default is True.
         
         show_observed   : Determines if the observed spectrum should be shown.
@@ -213,7 +213,7 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         only_best_synth : Determines if only the best fit synthetic spectrum should be shown.
                           Default is False.
         
-        num             : The amount of points for which the bisection should be calculated.
+        num             : The amount of points for which the bisector should be calculated.
                           Default is 50.
     
     Note that at least one of plot_observed or plot_synth must be true. Otherwise an exception is raised.
@@ -222,7 +222,7 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
     if not (plot_observed or plot_synth):
         print("Must plot something")
 
-    # Plot the bisection of the synthetic data    
+    # Plot the bisector of the synthetic data    
     if plot_synth:
         # Get the wavelengths
         rwav = region_result.wav
@@ -231,18 +231,18 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         else:
             rinten_all = region_result.inten
         
-        # Plot the bisections
+        # Plot the bisectors
         for a, rinten in enumerate(rinten_all):
-            bwav, binten = bisect.get_bisection(rwav, rinten, num = num)
+            bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
             if show_synth:
                 _plt.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
             _plt.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
     
-    # Plot the bisection of the observed data
+    # Plot the bisector of the observed data
     if plot_observed:
         rwav = region_result.region.wav
         rinten = region_result.region.inten
-        bwav, binten = bisect.get_bisection(rwav, rinten, num = num)
+        bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
         if show_observed:
             _plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
         _plt.plot(bwav, binten, color = "blue")

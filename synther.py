@@ -1,6 +1,18 @@
 """
 This module contains the functions and classes that synthezises spectra for different iron abundances and fits them to
-the observed spectra.
+the observed spectra. Other elements are not directly supported.
+
+ABOUT THE IRON ABUNDANCES:
+The abundance used in this code is the relative abundance of iron compared to hydrogen. Specifically, if the number density
+of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+
+    A(Fe) = log(N(Fe)) - log(N(H))
+
+To show what this means, let us consider an example. If A(Fe) = -4.5 then the we would know that
+
+    N(Fe)/N(H) = 10^-4.5
+
+There are other standards for abundance, but they are not used here.
 """
 
 # Imported for python 3 interoperability
@@ -17,13 +29,14 @@ import abundutils as au
 import multiprocessing as mp
 import astropy.units
 import os
+import time
 
 # Constants... as in, not really constants, but should probably never be modified during runtime
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
 _ELEMENT = "Fe"
 
-#
-_NSHIFT = 801
+# Original value: 101
+_NSHIFT = 101
 
 def _gaussian(x, p):
     """
@@ -104,23 +117,35 @@ class ChiRegionResult(object):
         
         inten_scale_factor      : A list of the scale factors of each abundance.
         
-        abund                   : A list of the abundances for which the synthetic data was synthezised.
+        abund                   : An array of the iron abundances for which the synthetic data was synthezised.
         
-        best_index              : The index of the best abundance.
+        best_index              : The index of the best iron abundance.
         
-        best_shift              : The best shift of the best abundance. This is essentially the shift corresponding to best_chisq
-                                  of the best abundance.
+        best_shift              : The best shift of the best iron abundance. This is essentially the shift corresponding to best_chisq
+                                  of the best iron abundance.
         
-        best_chisq              : The best chi squared value of the best abundance. This is the lowest chi squared value for the
-                                  best abundance.
+        best_chisq              : The best chi squared value of the best iron abundance. This is the lowest chi squared value for the
+                                  best iron abundance.
         
-        best_abund              : The best abundance. This is the abundance with lowest chi squared value for its best shift.
+        best_abund              : The best iron abundance. This is the abundance with lowest chi squared value for its best shift.
         
-        best_inten              : The best synthetic intensities of the best abundance.
+        best_inten              : The best synthetic intensities of the best iron abundance.
         
-        best_inten_scale_factor : The scale factor of the best synthetic intensities of the best abundance.
+        best_inten_scale_factor : The scale factor of the best synthetic intensities of the best iron abundance.
         
     The best values are all the values that corresponds to the best chi squared.
+    
+    The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
+    Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
+    to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    To show what this means, let us consider an example. If A(Fe) = -4.5 then the we would know that
+    
+        N(Fe)/N(H) = 10^-4.5
+    
+    There are other standards for abundance, but they are not used here.
     """
 
     def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_scale_factor, abund):
@@ -149,6 +174,18 @@ class ChiRegionResult(object):
             inten_scale_factor : A list of the scale factors of each abundance.
             
             abund              : A list of the abundances for which the synthetic data was synthezised.
+        
+        The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
+        Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
+        to be
+        
+            A(Fe) = log(N(Fe)) - log(N(H))
+        
+        To show what this means, let us consider an example. If A(Fe) = -4.5 then the we would know that
+        
+            N(Fe)/N(H) = 10^-4.5
+        
+        There are other standards for abundance, but they are not used here.
         """
         
         self.region = region
@@ -188,10 +225,7 @@ class ChiRegionResult(object):
         chisq = np.concatenate((self.chisq, other.chisq), axis = 0)
         chisq_all = np.concatenate((self.chisq_all, other.chisq_all), axis = 0)
         inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
-        
-        # Concatenate the abundencies. Note that these are not numpy arrays but ordinary python lists,
-        # so self.abund + other.abund means concatenation and not elementwise addition.
-        abund = self.abund + other.abund
+        abund = np.concatenate((self.abund, other.abund), axis = 0)
         
         # Return the fused result
         return ChiRegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_scale_factor, abund)
@@ -221,27 +255,39 @@ class EWRegionResult(object):
         diff                    : The differences between the observed and synthetic equivalent widths, for each abundance.
                                   This is an array.
         
-        abund                   : A list of the abundances for which the synthetic data was synthezised.
+        abund                   : A list of the iron abundances for which the synthetic data was synthezised.
         
         eq_width_unit           : The unit of the equivalent width. This should come from astropy.units.
         
-        best_index              : The index of the best values. This is essentially the index of the best abundance.
+        best_index              : The index of the best values. This is essentially the index of the best iron abundance.
         
-        best_inten              : The synthetic intensities of the best abundance.
+        best_inten              : The synthetic intensities of the best iron abundance.
         
-        best_inten_scale_factor : The scale factor corresponding to the synthetic intensities of the best abundance.
+        best_inten_scale_factor : The scale factor corresponding to the synthetic intensities of the best iron abundance.
         
-        best_eq_width           : The equivalent width of the best abundance.
+        best_eq_width           : The equivalent width of the best iron abundance.
         
         best diff               : The difference between the equivalent widths of the synthetic and observed lines, for
-                                  the best abundance. Specifically, this is the smallest such difference and the best
+                                  the best iron abundance. Specifically, this is the smallest such difference and the best
                                   abundance is simply the corresponding abundance.
         
-        best_abund              : The best abundance. This is the abundance which has the smallest differenece between
+        best_abund              : The best iron abundance. This is the abundance which has the smallest differenece between
                                   the equivalent widths of the synthetic and observed lines.
     
     Note that the best values are the values for the abundance which has the smallest differenece between the equivalent widths
     of the synthetic and observed lines.
+    
+    The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
+    Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
+    to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    To show what this means, let us consider an example. If A(Fe) = -4.5 then the we would know that
+    
+        N(Fe)/N(H) = 10^-4.5
+    
+    There are other standards for abundance, but they are not used here.
     """
     
     def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund, eq_width_unit):
@@ -268,6 +314,18 @@ class EWRegionResult(object):
             abund              : A list of the abundances for which the synthetic data was synthezised.
             
             eq_width_unit      : The unit of the equivalent width. This should come from astropy.units.
+        
+        The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
+        Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
+        to be
+        
+            A(Fe) = log(N(Fe)) - log(N(H))
+        
+        To show what this means, let us consider an example. If A(Fe) = -4.5 then the we would know that
+        
+            N(Fe)/N(H) = 10^-4.5
+        
+        There are other standards for abundance, but they are not used here.
         """
 
         # Store the data
@@ -311,10 +369,7 @@ class EWRegionResult(object):
         inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
         eq_width = np.concatenate((self.eq_width, other.eq_width*conv_factor), axis = 0)
         diff = np.concatenate((self.diff, other.diff*conv_factor), axis = 0)
-
-        # Concatenate the abundencies. Note that these are not numpy arrays but ordinary python lists,
-        # so self.abund + other.abund means concatenation and not elementwise addition.
-        abund = self.abund + other.abund
+        abund = np.concatenate((self.abund, other.abund), axis = 0)
         
         # Return a new region result
         return EWRegionResult(self.region, self.wav, inten, inten_scale_factor, self.obs_eq_width, eq_width, diff, abund, self.eq_width_unit)
@@ -353,6 +408,11 @@ class SynthResult(object):
         self.region_data = region_data
         self.wav = wav
         self.raw_synth_data = raw_synth_data
+        
+        #
+        self.best_abunds = np.array([r.best_abund for r in region_result])
+        self.abund = np.mean(self.best_abunds)
+        self.error_abund = np.std(self.best_abunds)
     
 def _fuse_result2(result1, result2):
     """
@@ -448,7 +508,7 @@ def _parallel_call(conn, func, args):
     finally:
         conn.close()
 
-def _parallel_calc(abund_range, processes, func, args):
+def _parallel_calc(abund_range, processes, func, args, verbose):
     """
     The function distributes abundance calculations over processes, take their results, fuses them together
     and returns that fused result. The required arguments are
@@ -460,6 +520,8 @@ def _parallel_calc(abund_range, processes, func, args):
         func        : The function that performs the calculations. Note that the function should take the abundance as first argument.
         
         args        : The arguments to the function, abundance excluded.
+        
+        verbose     : Determines if extra information should be printed.
 
     Returns a SynthResult object containing the result of all calculations.
     """
@@ -481,6 +543,10 @@ def _parallel_calc(abund_range, processes, func, args):
         si = i*abunds_per_process
         ei = (i + 1)*abunds_per_process
         abunds[i].extend(abund_range[si:ei])
+    
+    # If in verbose mode, print information
+    if verbose:
+        print("Parallel computation enabled. Processes used:", processes)
 
     # Spawn the processes
     proc_list = []
@@ -506,12 +572,12 @@ def _parallel_calc(abund_range, processes, func, args):
     # Fuse the results and return it   
     return _fuse_result(result_list)
 
-def _fit_regions(regions, wav, synth_data, abund_updates, verbose):
+def _fit_regions(regions, wav, synth_data, abunds, verbose):
     """
     Fits the regions of the synthetic data to the corresponding observed data
     """
     
-    abund_count = len(abund_updates)
+    abund_count = len(abunds)
     
     # A list of the chi sqaured values for each region
     region_result = []
@@ -523,9 +589,12 @@ def _fit_regions(regions, wav, synth_data, abund_updates, verbose):
     # Display some information, if in verbose mode
     if verbose:
         print("Number of regions to test:", len(regions))
-        print("Number of abundances to test:", len(abund_updates))
+        print("Number of abundances to test:", len(abunds))
         print("Number of shifts: ", nshift)
         print("Shift step length:", shift[1]-shift[0])
+    
+    # Take current time again, this time to time the fitting phase
+    start_time = time.time()
 
     # For each region
     for ri, r in enumerate(regions):
@@ -614,10 +683,17 @@ def _fit_regions(regions, wav, synth_data, abund_updates, verbose):
             chisq[a] = ((robs_inten - interp_syn)**2).sum()
 
         # Add the result of the current region to the list of region results
-        region_result.append(ChiRegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abund_updates))
+        region_result.append(ChiRegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abunds))
+
+    # If in verbose mode, display fitting timing
+    if verbose:
+        end_time = time.time()
+        print("Fitting time:", end_time - start_time, "seconds")
+    
+    # Return the region result
     return region_result
 
-def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file, verbose):
+def _fit_spectrum(abund_range, cfg_file, regions, model_file, verbose):
     """
     Synthazises spectral lines and attempt to fit them to the observed data using the chi squared
     method.
@@ -625,7 +701,8 @@ def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file,
     
     # Create the abundance updates and check them
     abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
-    
+    abund_range = np.array(abund_range)
+        
     # Copy the region list and setup an array with the region data
     region_data = _setup_region_data(regions)
 
@@ -635,24 +712,30 @@ def _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file,
     # Read a model
     m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
     
+    # Take current time
+    start_time = time.time()
+    
     # Generate the synthetic lines
     synth_data = []
-    if use_default_abund:
-        abund_updates = au.EMPTY_ABUND + abund_updates
     for a in abund_updates:
         s.updateABUND(a, verbose = verbose)
         synth_data.append(_synth(s, m))
+
+    # If in verbose mode, display time
+    if verbose:
+        end_time = time.time()
+        print("Synth time:", end_time - start_time, "seconds")
 
     # Get the wavelengths
     wav = s.getwav()
     
     # Fit the regions (kind of... technically this determines how to shift the regions and how well everything then fits)
-    region_result = _fit_regions(regions, wav, synth_data, abund_updates, verbose)
+    region_result = _fit_regions(regions, wav, synth_data, abund_range, verbose)
     
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
 
-def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = False, model_file = None, verbose = False):
+def fit_spectrum(cfg_file, atlas, regions, abund_range, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum. The required arguments are
     
@@ -665,9 +748,6 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
     The optional arguments are
-
-        use_default_abund : Determines if the default iron abundance should be used first.
-                            Default is False.
         
         model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
                             Default is None.
@@ -681,18 +761,18 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, use_default_abund = Fals
     a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
     chi squared is then taken as the best value.
     
-    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance of iron compared to hydrogen. Specifically,
     if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
     
         A(Fe) = log(N(Fe)) - log(N(H))
     
-    There are other standards for abundance, so be sure the correct one is used.
+    There are other standards for abundance, but they are not used here.
     """
     
     regions = _setup_regions(atlas, regions)
-    return _fit_spectrum(abund_range, cfg_file, regions, use_default_abund, model_file, verbose)
+    return _fit_spectrum(abund_range, cfg_file, regions, model_file, verbose)
 
-def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, use_default_abund = False, model_file = None, verbose = False):
+def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum, but distributes the work over several processes
     rather then doing it directly. The required arguments are
@@ -709,9 +789,6 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     
         processes         : The amount of working processes.
                             Default is 2.
-
-        use_default_abund : Determines if the default iron abundance should be used first.
-                            Default is False.
         
         model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
                             Default is None.
@@ -725,12 +802,12 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest
     chi squared is then taken as the best value.
     
-    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance of iron compared to hydrogen. Specifically,
     if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
     
         A(Fe) = log(N(Fe)) - log(N(H))
     
-    There are other standards for abundance, so be sure the correct one is used.
+    There are other standards for abundance, but they are not used here.
     
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
@@ -742,7 +819,7 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, use_default_abund, model_file, verbose))
+    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, model_file, verbose), verbose)
 
 def _equivalent_width(wav, inten):
     """
@@ -775,6 +852,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     
     # Create the abundance updates and check them
     abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
+    abund_range = np.array(abund_range)
     
     # Setup the regions
     region_data = _setup_region_data(regions)
@@ -785,6 +863,9 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     # Read a model
     m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
     
+    # Take current time
+    start_time = time.time()
+    
     # Synth the spectrum
     synth_data = []
     for a in abund_updates:
@@ -793,6 +874,8 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     
     # Display the amount of abundances
     if verbose:
+        end_time = time.time()
+        print("Synth time:", end_time - start_time, "seconds")
         print("Number of regions to test:", len(regions))
         print("Number of abundances to test:", len(abund_updates))
         print("Equivalent width unit:", eq_width_unit)
@@ -800,6 +883,9 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     # Get the synthetic intensities for the abundances and the wavelength
     synth_inten = [sd[0,0,0,:,0] for sd in synth_data]
     wav = s.getwav()
+
+    # Take current time again, this time to time the fitting phase
+    start_time = time.time()
 
     # Fit the data in each region using equivalent widths
     result = []
@@ -860,10 +946,17 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
             eq_width[ai] = _equivalent_width(rwav, rsynth_inten) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rsynth_inten
-        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_updates, eq_width_unit))
+        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_range, eq_width_unit))
+
+    # If in verbose mode, display fitting timing
+    if verbose:
+        end_time = time.time()
+        print("Fitting time:", end_time - start_time, "seconds")
+    
+    # Return the result
     return SynthResult(result, region_data, wav, synth_data)
 
-def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, use_default_abund = True, model_file = None, verbose = False):
+def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum for different iron abundancies. The required arguments are
     
@@ -880,9 +973,6 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
         eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
                             Default is astropy.units.pm, which stands for picometers.
 
-        use_default_abund : Determines if the default iron abundance should be used first.
-                            Default is False.
-        
         model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
                             Default is None.
         
@@ -892,18 +982,18 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
     Returns a SynthResult object that contains the results of all calculations.
 
     Fitting is done by calculating the equivalent width of each region, both for the synthetic data and for the observed data. The abundance which
-    gives the equivalent width that matches with the equivalent width of the observed data is taken as the best abundance.
+    gives the equivalent width that matches with the equivalent width of the observed data is taken as the best iron abundance.
     
-    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    The iron abundancies are given as a range of float numbers. These numbers represents the relative abundance of iron compared to hydrogen. Specifically,
     if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
     
         A(Fe) = log(N(Fe)) - log(N(H))
     
-    There are other standards for abundance, so be sure the correct one is used.
+    There are other standards for abundance, but they are not used here.
     """
     
     regions = _setup_regions(atlas, regions)
-    return _fit_width(abund_range, cfg_file, regions, eq_width_unit, use_default_abund, model_file, verbose)
+    return _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose)
 
 def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, model_file = None, verbose = False):
     """
@@ -934,14 +1024,14 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     Returns a SynthResult object that contains the results of all calculations.
 
     Fitting is done by calculating the equivalent width of each region, both for the synthetic data and for the observed data. The abundance which
-    gives the equivalent width that matches with the equivalent width of the observed data is taken as the best abundance.
+    gives the equivalent width that matches with the equivalent width of the observed data is taken as the best iron abundance.
     
-    The iron abundances are given as a range of float numbers. These numbers represents the relative abundance compared to hydrogen. Specifically,
+    The iron abundances are given as a range of float numbers. These numbers represents the relative abundance of iron compared to hydrogen. Specifically,
     if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
     
         A(Fe) = log(N(Fe)) - log(N(H))
     
-    There are other standards for abundance, so be sure the correct one is used.
+    There are other standards for abundance, but they are not used here.
     
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
@@ -953,5 +1043,5 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, model_file, verbose))
+    return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, model_file, verbose), verbose)
 

@@ -14,17 +14,14 @@ import fitting
 import astropy.constants
 import astropy.units
 import synther
-import abundutils as au
 import regfile
 import plotting
 from plotting import plot_in, plot_around
 
 # Used to quickly switch code
 _MODE = 0
-_MODE_FIT_BEST_SPACING = True
 _MODE_SHOW_PLOTS = False
 _MODE_SHOW_UNSHIFTED = True
-_MODE_USE_SEEKING = False
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = False
 _MODE_VERBOSE = True
@@ -67,10 +64,25 @@ def _print_regions(regions):
 if _MODE_SHOW_REGIONS:
     _print_regions(regions)
 
-# Create the abundencies (default not included)
-#abunds = []
-#abunds = [-4.35, -4.4, -4.45, -4.55, -4.6, -4.65]
-#abunds = -np.arange(4.1, 4.8, step = 0.005)
+def twfor(region_nr):
+    return (np.arange(15)-7)*(regions[region_nr].wav[1] - regions[region_nr].wav[0])
+
+def gaussfor(region_nr, tw, vel = 1.83):
+    return synther._gaussian(tw, [1.0, 0.0, vel*regions[region_nr].lambda_end/300000.0])
+
+def gaussfor2(region_nr, vel = 1.83):
+    tw = twfor(region_nr)
+    return tw, gaussfor(region_nr, tw, vel = vel)
+
+def plotgauss(region_nr, vels = None):
+    if vels == None:
+        vels = [1.83]
+    tw = twfor(region_nr)
+    for v in vels:
+        plt.plot(tw, gaussfor(region_nr, tw, vel = v))
+    plt.show()
+
+# Create the abundances
 abunds = -np.arange(4.1, 5.0, step = 0.01)
 
 def print_shifts(show_all = True):
@@ -96,27 +108,6 @@ try:
 finally:
     time_end = time.time()
 
-#print_shifts(show_all = False)
-
-def print_best_seeking():
-    if not (_MODE_USE_SEEKING and initial_abunds):
-        raise Exception("No result from seeking mode")
-    best_abunds = []
-    for (chi2, a), fo in result2:
-        print("Region:", fo.reg)
-        print("    Best chisq:", chi2)
-        print("    Best abund:", a)
-        print("")
-        best_abunds.append(a)
-    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12, " (as 12 + mean)")
-    print("*** ", best_abunds)
-
-if _MODE_USE_SEEKING and initial_abunds:
-    print("\n**********************")
-    print("**** SEEKING MODE ****")
-    print("**********************\n")
-    result2 = synther.fit_spectrum_seeking(CFG_FILE, at, regions, initial_abunds, 0.01, verbose = _MODE_VERBOSE)
-
 def _calc_vel(delta_lambda, lambda_em):
     """
     Calculates the velocity that corresponds to a doppler shift
@@ -125,7 +116,6 @@ def _calc_vel(delta_lambda, lambda_em):
     return delta_lambda*300000.0/lambda_em
 
 def print_best():
-    best_abunds = []
     for r in result.region_result:
         lambda_em = r.wav[np.argmin(r.inten[r.best_index])]
         print("Region:", r.region)
@@ -134,13 +124,10 @@ def print_best():
         print("    Best abund:", r.best_abund)
         print("    Velocity: ~", _calc_vel(r.best_shift, lambda_em), "     ( Using delta_lambda =", r.best_shift, "lambda_em =", lambda_em, ")")
         print("")
-        if r.best_abund != []:
-            best_abunds.append(au.get_value(r.best_abund))
-        else:
-            print("\n!!!!!!!!!!!!!! WHAT WAS THE DEFAULT ABUND AGAIN? WAS IT -4.5? BECAUSE I'M USING -4.5 !!!!!!!!!!!!!!\n")
-            best_abunds.append(-4.5)
-    print("Mean abund:", np.mean(best_abunds), "     or:", np.mean(best_abunds) + 12, " (as 12 + mean)")
-    print("*** ", best_abunds)
+    print("Best abunds:", result.best_abunds)
+    print("Min abund: ", min(result.best_abunds), "     or:", min(result.best_abunds) + 12.0, " (as 12 + min abund)")
+    print("Max abund: ", max(result.best_abunds), "     or:", max(result.best_abunds) + 12.0, " (as 12 + max abund)")
+    print("Mean abund:", result.abund, "+-", result.error_abund, "     or:", result.abund + 12.0, "+-", result.error_abund, " (as 12 + mean abund)")
 if _MODE_PRINT_BEST:
     print_best()
 
@@ -153,8 +140,7 @@ def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, sho
 
 def plot_spec(show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
     # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
-    plot_title = "Mode: " + str(_MODE)
-    plotting.plot_spec(result.region_result, show_observed = show_observed, show_continuum = show_continuum, show_unshifted = show_unshifted, padding = padding, plot_title = plot_title, cgs = cgs)
+    plotting.plot_spec(result.region_result, show_observed = show_observed, show_continuum = show_continuum, show_unshifted = show_unshifted, padding = padding, cgs = cgs)
 
 def plot_chisq(region_nr):
     regres = result.region_result[region_nr]
@@ -183,16 +169,6 @@ def _conv(energy):
     Converts energy from 1/cm to eV
     """
     return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
-
-#def _print_vel(dlambda):
-#    _, lambda_min = result.region_min()
-#    for a in range(lambda_min.shape[0]):
-#        print("*** Abundance nr", a, "***")
-#        for dl, l_em in zip(dlambda, lambda_min[a,:]):
-#            print("dl: ", dl, "\nl_obs:  ", l_em - dl, "\nVel:", dl*lightspeed/l_em, "\n")
-#    print("NOTE: WHEN dl IS DIRECTLY SET TO dl = 0.021 THE SYNTHETIC CURVE IS NOTICABLY DISPLACED COMPARED TO THE ATLAS SPECTRA AND DOES NOT FIT!!!")
-#    print("      AND WITH NOTICABLY I MEAN IT'S VISIBLE TO THE NAKED EYE (DEPENDING ON ZOOM LEVEL)!!!")
-#    print("      SHOULD PROBABLY MAKE SURE I HAVE COMPARED TO THE CORRECT ATLAS SPECTAL LINES!!!")
 
 # Show the time the calculation took
 print("Time:", time_end - time_start, " (seconds)")
