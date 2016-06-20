@@ -4,7 +4,6 @@ This module contains functions that handles bisectors. Specifically one function
 
 from __future__ import print_function
 
-import scipy.optimize as so
 import scipy.interpolate as si
 import numpy as np
 

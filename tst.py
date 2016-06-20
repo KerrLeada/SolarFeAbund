@@ -37,23 +37,8 @@ at = sa.satlas()
 
 # Get the regions
 regions = regfile.get_regions()
-initial_abunds = [
-    (-4.45, -4.47),
-    (-4.57, -4.59),
-    (-4.51, -4.53),
-    (-4.49, -4.5),
-    (-4.4, -4.41),
-    (-4.54, -4.55),
-    (-4.44, -4.45),
-    (-4.57, -4.58),
-    (-4.61, -4.62),
-    (-4.56, -4.57),
-    (-4.5, -4.51),
-    (-4.61, -4.62),
-    (-4.42, -4.3),
-]
 
-def _print_regions(regions):
+def _print_regions():
     """
     Prints the regions
     """
@@ -62,7 +47,7 @@ def _print_regions(regions):
         print(r)
     print("*** END REGIONS ***")
 if _MODE_SHOW_REGIONS:
-    _print_regions(regions)
+    _print_regions()
 
 def twfor(region_nr):
     return (np.arange(15)-7)*(regions[region_nr].wav[1] - regions[region_nr].wav[0])
@@ -82,10 +67,19 @@ def plotgauss(region_nr, vels = None):
         plt.plot(tw, gaussfor(region_nr, tw, vel = v))
     plt.show()
 
-# Create the abundances
-abunds = -np.arange(4.1, 5.0, step = 0.01)
+# Create the abundances (these limits where chosen after calculating
+# for a larger interval and noticing it was too large... specifically
+# it used to be from -4.1 to -5.0).
+abunds = -np.arange(4.3, 4.8, step = 0.01)
 
 def print_shifts(show_all = True):
+    """
+    Prints the shifts. By default the abundance and chi squared is printed as well, however
+    more information can be printed by setting the show_all argument to true. If show_all is
+    true then the doppler velocity (which is the velocity that would give a doppler shift
+    corresponding to the obtained shift), the wavelength of the line maximum without shifting
+    the line as well as the wavelength of the maximum when shifting the line are shown as well.
+    """
     for r in result.region_result:
         print("Region:", str(r.region))
         for a, s, c2, ainten in zip(r.abund, r.shift, r.chisq, r.inten):

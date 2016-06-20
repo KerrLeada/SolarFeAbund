@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as _plt
 import abundutils as _au
 import satlas as _sa
+import scipy.interpolate as si
 import bisect
 
 # Get the atlas
@@ -247,6 +248,57 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
             _plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
         _plt.plot(bwav, binten, color = "blue")
 
+    _plt.show()
+
+def _estimate_line_wavelength(region):
+    tck = si.splrep(region.wav, region.inten)
+    min_wav = region.wav[region.inten == min(region.inten)][0]
+    wav = np.linspace(min_wav - 2*region.dlambda, min_wav + 2*region.dlambda)
+    inten = si.splev(wav, tck, der = 0)
+    return wav[inten == min(inten)][0]
+
+def plot_abund(region_results, with_H_as_12 = True):
+    """
+    Plots the best iron abundances against characteristic wavelengths of
+    the regions. The argument is:
+    
+        region_results : The list of region results.
+    
+    The optional argument is
+        
+        with_H_as_12 : Sets which abundance convention should be used.
+                       Default is True.
+    """
+    
+    x = np.array([_estimate_line_wavelength(r.region) for r in region_results])
+    y = np.array([r.best_abund for r in region_results])
+    if with_H_as_12:
+        y += 12.0
+    
+    _plt.plot(x, y, ".")
+    _plt.show()
+
+def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
+    """
+    Plots a histogram of the abundances, using the given amount of bins.
+    The required argument is
+    
+        region_results : A list of region results. Their best abundances will
+                         be used to plot the histogram.
+    
+    The optional arguments are
+    
+        bins         : The amount of bins of the histogram.
+                       Default is 5.
+        
+        with_H_as_12 : Sets which abundance convention should be used.
+                       Default is True.
+    """
+    
+    abundances = np.array([r.best_abund for r in region_results])
+    if with_H_as_12:
+        abundances += 12.0
+    _plt.hist(abundances, bins = bins)
     _plt.show()
 
 def plot_in(lambda0, lambda_end, *args, **kwargs):
