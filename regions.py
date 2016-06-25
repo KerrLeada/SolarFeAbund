@@ -32,6 +32,8 @@ class Region(object):
         inten_scale_factor : The scale factor for the observed intensities. To get the unscaled
                              intensities, simply multiply the inten attribute with this one.
         
+        cont               : The continuum level intensities at the wavelengths of wav.
+        
         lambda0            : The starting wavelength of the region.
         
         lambda_end         : The ending wavelength of the region.
@@ -47,7 +49,7 @@ class Region(object):
         length             : The amount of observed wavelengths.
     """
 
-    def __init__(self, lambda0, wav, inten, dlambda, nlambda, scale_factor = 1.0):
+    def __init__(self, lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = 1.0):
         """
         Constructor for Region objects. It is not recommeneded to use this constructor directly. The required arguments are
 
@@ -56,6 +58,8 @@ class Region(object):
             wav     : Wavelengths of observed data points.
 
             inten   : Intensity of the observed data points.
+            
+            cont    : The continuum level intensities at the wavelengths of wav.
 
             dlambda : Step size for synthezising a spectra.
 
@@ -70,6 +74,7 @@ class Region(object):
         self.wav = wav
         self.inten_scale_factor = inten.max()
         self.inten = inten / self.inten_scale_factor
+        self.cont = cont
         self.lambda0 = lambda0
         self.length = wav.size
         
@@ -137,7 +142,7 @@ class Region(object):
         Creates a copy of this region.
         """
         
-        reg = Region(self.lambda0, self.wav, self.inten, self.dlambda, self.nlambda, scale_factor = self.scale_factor)
+        reg = Region(self.lambda0, self.wav, self.inten, self.cont, self.dlambda, self.nlambda, scale_factor = self.scale_factor)
         reg.inten_scale_factor = self.inten_scale_factor
         return reg
    
@@ -281,7 +286,7 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         nlambda = wav.size
     
     # Return the new region
-    return Region(lambda0, wav, inten, dlambda, nlambda, scale_factor = scale_factor)
+    return Region(lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = scale_factor)
 
 def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True):
     """
@@ -304,10 +309,10 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True)
         (lambda_0, dlambda, nlambda, scale_factor)
     """
     
-    obs_wav, obs_inten, _ = atlas.getatlas(lambda0, lambda0 + dlambda*nlambda, cgs = cgs)
+    obs_wav, obs_inten, obs_cont = atlas.getatlas(lambda0, lambda0 + dlambda*nlambda, cgs = cgs)
     if len(obs_wav) != nlambda:
         raise Exception("The observed data had a length " + str(len(obs_wav)) + " while nlambda was " + str(nlambda) + ". They must match.")
-    return Region(lambda0, obs_wav, obs_inten, dlambda, nlambda, scale_factor = scale_factor)
+    return Region(lambda0, obs_wav, obs_inten, obs_cont, dlambda, nlambda, scale_factor = scale_factor)
 
 def new_region_from(atlas, obj):
     """

@@ -1,3 +1,5 @@
+# -*- coding: utf8 -*-
+
 """
 This module contains functions for plotting observed and synthetic spectra.
 """
@@ -101,10 +103,11 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
         # Plot the spectrum, followed by the synth lines
         _plt.plot(rwav, rinten, color = "blue")
     
-    # Show the plot
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Normalized intensity")
     _plt.show()
 
-def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, plot_title = None):
+def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, plot_title = None, cgs = True):
     """
     Plots the spectrum that is coverd by the given region results. The required argument is
 
@@ -126,6 +129,10 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
                          Default is 0.
 
         plot_title     : Sets the plot title.
+                         Default is None.
+        
+        cgs            : Determines is cgs units should be used.
+                         Default is True.
     """
 
     # Set the plot title
@@ -160,22 +167,29 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
         if show_continuum:
             _plt.plot(wl, cont, color = "blue", linestyle = "--", alpha = 0.5)
     
-    # Show everything
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Normalized intensity")
     _plt.show()
 
-# Plots chi squared of a region result
-def plot_vs_abund(abund, values):
+def plot_vs_abund(abund, values, ylabel = None):
     """
-    Plots a quantity against the abundance. The arguments are
+    Plots a quantity against the abundance. The required arguments are
 
         abund  : An iterable over abundances. An individual abundance is expected to be in the same
                  form as if it was created with the function abundutils.abund.
 
         values : An iterable of values.
-    """
     
-    a = _au.list_abund(abund, default_val = -4.5)
-    _plt.plot(a, values)
+    The optional argument is
+    
+        ylabel : The label of the y axis. If this argument is None, the y axis will not have a label.
+                 Default is None.
+    """
+
+    _plt.plot(abund, values)
+    _plt.xlabel("Fe abundance")
+    if ylabel != None:
+        _plt.ylabel(ylabel)
     _plt.show()
 
 def plot_chisq(region_result):
@@ -185,8 +199,8 @@ def plot_chisq(region_result):
         region_result : The region result from which the chi squared should be plotted. This will work
                         for an instance of ChiRegionResult, but not EWRegionResult.
     """
-    
-    plot_vs_abund(region_result.abund, region_result.chisq)
+        
+    plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$")
 
 def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
     """
@@ -248,6 +262,8 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
             _plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
         _plt.plot(bwav, binten, color = "blue")
 
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Normalized intensity")
     _plt.show()
 
 def _estimate_line_wavelength(region):
@@ -276,6 +292,8 @@ def plot_abund(region_results, with_H_as_12 = True):
         y += 12.0
     
     _plt.plot(x, y, ".")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Fe abundance")
     _plt.show()
 
 def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
@@ -299,6 +317,21 @@ def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
     if with_H_as_12:
         abundances += 12.0
     _plt.hist(abundances, bins = bins)
+    _plt.xlabel("Fe abundance")
+    _plt.show()
+
+def plot_scaled(region):
+    """
+    Plots the spectrum scaled after the local maximum and the spectrum scaled after
+    the continuum level for the data points, together in the same plot. The argument is
+    
+        region : The region object. This should be an instance of the Region class.
+    """
+    
+    _plt.plot(region.wav, region.inten, "b")
+    _plt.plot(region.wav, region.inten*region.inten_scale_factor/region.cont, "r")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Normalized intensity")
     _plt.show()
 
 def plot_in(lambda0, lambda_end, *args, **kwargs):
@@ -308,8 +341,13 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
         lambda0    : The starting wavelength of the interval.
         
         lambda_end : The final wavelength of the interval.
+    
+    An optional argument is
+    
+        normalize : Normalizes the intensity if set to True.
+                    Default is True.
         
-    Any additional parameters are passed on to the plotting function.
+    Any additional arguments are passed on to the plotting function.
     """
 
     # Get the wavelength, intensity and continuum
@@ -323,6 +361,11 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
 
     # Plot the spectrum
     _plt.plot(wav, intensity, *args, **kwargs)
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    if normalize:
+        _plt.ylabel("Normalized intensity")
+    else:
+        _plt.ylabel("Intensity")
     _plt.show()
 
 def plot_around(lambda_mid, delta, *args, **kwargs):
@@ -352,7 +395,7 @@ def plot_delta(y, x = None, *args, **kwargs):
     There is an optional argument
         
         x : The points at which to plot the differences. If set to None, an interval from 0 to the
-            length of y with steps of 1 will be used.
+            length of y minus 1 with steps of 1 will be used.
     
     Any additional parameters are passed on to the plotting function.
     """

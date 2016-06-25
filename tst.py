@@ -42,6 +42,7 @@ def _print_regions():
     """
     Prints the regions
     """
+    
     print("*** REGIONS ***")
     for r in regions:
         print(r)
@@ -80,6 +81,7 @@ def print_shifts(show_all = True):
     corresponding to the obtained shift), the wavelength of the line maximum without shifting
     the line as well as the wavelength of the maximum when shifting the line are shown as well.
     """
+    
     for r in result.region_result:
         print("Region:", str(r.region))
         for a, s, c2, ainten in zip(r.abund, r.shift, r.chisq, r.inten):
@@ -107,6 +109,7 @@ def _calc_vel(delta_lambda, lambda_em):
     Calculates the velocity that corresponds to a doppler shift
     with a given shift delta_lambda and an emitted wavelength lambda_em.
     """
+    
     return delta_lambda*300000.0/lambda_em
 
 def print_best():
@@ -138,7 +141,7 @@ def plot_spec(show_observed = True, show_continuum = False, show_unshifted = Fal
 
 def plot_chisq(region_nr):
     regres = result.region_result[region_nr]
-    plotting.plot_vs_abund(regres.abund, regres.chisq)
+    plotting.plot_chisq(regres)
 
 def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
     plotting.plot_bisect(result.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, only_best_synth = only_best_synth, num = num)
@@ -154,6 +157,7 @@ def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     Counts the number of data points in wav between lambda0 and lambda_end. If wav is not given, the data from the
     atlas in the given region will be used as default.
     """
+    
     if wav == None:
         wav, _, _ = at.getatlas(lambda0 - padding, lambda_end + padding, cgs = True)
     return len(wav[(lambda0 <= wav) & (wav <= lambda_end)])
@@ -162,6 +166,7 @@ def _conv(energy):
     """
     Converts energy from 1/cm to eV
     """
+    
     return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
 
 # Show the time the calculation took

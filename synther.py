@@ -618,6 +618,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
         # Get the observed wavelengths and intensities in the current region
         robs_wav = r.wav
         robs_inten = r.inten
+#        robs_inten = r.inten*r.inten_scale_factor/r.cont
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions. Specifically, it is used later on when convolving the synthetic data.
@@ -652,6 +653,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
             # need to calculate the convolution of the synthetic lines and the gaussian profile calculated above.
             rsynth_inten = _convolve(rsynth_inten, reduced_psf)
             rsynth_inten /= rsynth_inten.max()
+#            rsynth_inten = rsynth_inten * (r.cont/r.cont.max()) / rsynth_inten.max()
         
             # Store the synthetic wavelengths and intensities in this region for later calculations
             rwav_all.append(rwav)
