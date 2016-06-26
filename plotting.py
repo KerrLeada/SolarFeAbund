@@ -268,7 +268,7 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
 
 def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, linestyle_obs = "-", legend_pos = 4):
     """
-    Plots the intensity that handles macroturbulance and the corresponding intensity that does not handle macroturbulance against
+    Plots the intensity that handles macroturbulence and the corresponding intensity that does not handle macroturbulence against
     the wavelength, for an abundance. If no abundance is specified, the best fit abundance is used. The required argument is
     
         region_result : The region result object, containing the results of the calculations for a
@@ -276,7 +276,7 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     
     The optional arguments are
         
-        abund_index   : The abundance index to show the macroturbulance for. If set to None the best
+        abund_index   : The abundance index to show the macroturbulence for. If set to None the best
                         abundance will be used.
                         Default is None.
         
@@ -317,7 +317,7 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     if abund_index == None:
         abund_index = region_result.best_index
         
-    # Plot the intensities without macroturbulance and then with macroturbulance against the wavelength
+    # Plot the intensities without macroturbulence and then with macroturbulence against the wavelength
     lbl_nm = _plt.plot(region_result.wav, region_result.inten_no_macroturb[abund_index], color = "red", label = "No mt")
     lbl = _plt.plot(region_result.wav, region_result.inten[abund_index], color = "green", label = "With mt")
     labels = [lbl_nm[0], lbl[0]]

@@ -105,13 +105,13 @@ class ChiRegionResult(object):
                                   are scaled so that the maximum is 1. To get the unscaled intensities for an abundance, multiply
                                   them with the corresponding scale factor, given in inten_scale_factor.
         
-        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
-                                  Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulence.
+                                  Macroturbulence is caused by macroscopic velocity fields of the gas in the solar
                                   atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
                                   for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
                                   calculation, it can be handled somewhat by convolving the synthetic spectra with a
                                   gaussian. This attribute contains a list of the the raw data per abundance that does not
-                                  handle the macroturbulance. As with the inten attribute, this is scaled to 1. The
+                                  handle the macroturbulence. As with the inten attribute, this is scaled to 1. The
                                   unscaled intensities for an abundance can be obtained by multiplying with the corresponding
                                   scale factor in inten_scale_factor_nm.
         
@@ -127,18 +127,18 @@ class ChiRegionResult(object):
         
         inten_scale_factor      : A list of the scale factors of each abundance.
         
-        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulence
                                   has been neglected. This is essentially the maximum unscaled intensities for the abundances, when
-                                  macroturbulance is not handled.
+                                  macroturbulence is not handled.
         
         abund                   : An array of the iron abundances for which the synthetic data was synthezised.
         
-        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulance and the intensities that
-                                  neglect the macroturbulance, for each abundance. Note that it takes the intensity with macroturbulance
-                                  minus the intensity without macriturbulance for a given abundance.
+        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulence and the intensities that
+                                  neglect the macroturbulence, for each abundance. Note that it takes the intensity with macroturbulence
+                                  minus the intensity without macriturbulence for a given abundance.
         
-        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulance and the intensities that neglect
-                                  the macroturbulance, for each abundance.
+        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulence and the intensities that neglect
+                                  the macroturbulence, for each abundance.
         
         best_index              : The index of the best iron abundance.
         
@@ -182,13 +182,13 @@ class ChiRegionResult(object):
                                     rows represents the intensities of the different abundances. Note that the intensities
                                     should be scaled so that the maximum is 1.
             
-            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
-                                    Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulence.
+                                    Macroturbulence is caused by macroscopic velocity fields of the gas in the solar
                                     atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
                                     for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
                                     calculation, it can be handled somewhat by convolving the synthetic spectra with a
                                     gaussian. This argument should be a list of the the raw data for each abundance that
-                                    does not handle the macroturbulance.
+                                    does not handle the macroturbulence.
             
             shift                 : A list of the best shift for each abundance.
             
@@ -202,7 +202,7 @@ class ChiRegionResult(object):
             
             inten_scale_factor    : A list of the scale factors of each abundance.
             
-            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulence
                                     is neglected. These intensities are given in the inten_no_macroturb argument.
             
             abund                 : A list of the abundances for which the synthetic data was synthezised.
@@ -232,7 +232,7 @@ class ChiRegionResult(object):
         self.chisq_all = chisq_all
         self.abund = abund
         
-        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulance, as
+        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulence, as
         # well as the corresponding chi squared. This is done for each abundance.
         self.no_macroturb_diffs = np.array([i - i_nm for i, i_nm in zip(inten, inten_no_macroturb)])
         self.no_macroturb_chisq = np.array([(inten_diffs**2.0).sum() for inten_diffs in self.no_macroturb_diffs])
@@ -286,22 +286,22 @@ class EWRegionResult(object):
                                   abundance, multiply its intensity with the corresponding scale factor (which can
                                   be obtained from the inten_scale_factor attribute)
         
-        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
-                                  Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulence.
+                                  Macroturbulence is caused by macroscopic velocity fields of the gas in the solar
                                   atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
                                   for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
                                   calculation, it can be handled somewhat by convolving the synthetic spectra with a
                                   gaussian. This attribute contains a list of the the raw data per abundance that does not
-                                  handle the macroturbulance. As with the inten attribute, this is scaled to 1. The
+                                  handle the macroturbulence. As with the inten attribute, this is scaled to 1. The
                                   unscaled intensities for an abundance can be obtained by multiplying with the corresponding
                                   scale factor in inten_scale_factor_nm.
         
         inten_scale_factor      : A list of the scale factors of each abundance. This is essentially the maximum unscaled
                                   intensities for the abundances.
         
-        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulence
                                   has been neglected. This is essentially the maximum unscaled intensities for the abundances, when
-                                  macroturbulance is not handled.
+                                  macroturbulence is not handled.
         
         obs_eq_width            : The equivalent width of the observed line.
         
@@ -312,14 +312,14 @@ class EWRegionResult(object):
         
         abund                   : A list of the iron abundances for which the synthetic data was synthezised.
         
-        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulance and the intensities that
-                                  neglect the macroturbulance, for each abundance. Note that it takes the intensity with macroturbulance
-                                  minus the intensity without macriturbulance for a given abundance.
+        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulence and the intensities that
+                                  neglect the macroturbulence, for each abundance. Note that it takes the intensity with macroturbulence
+                                  minus the intensity without macriturbulence for a given abundance.
         
-        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulance and the intensities that neglect
-                                  the macroturbulance, for each abundance.
+        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulence and the intensities that neglect
+                                  the macroturbulence, for each abundance.
         
-        no_macroturb_eq_width   : The equivalent width of the intensities that neglects macroturbulance, for each intensity.
+        no_macroturb_eq_width   : The equivalent width of the intensities that neglects macroturbulence, for each intensity.
         
         eq_width_unit           : The unit of the equivalent width. This should come from astropy.units.
         
@@ -367,17 +367,17 @@ class EWRegionResult(object):
                                     rows represents the intensities of the different abundances. Note that the intensities
                                     should be scaled so that the maximum is 1.
             
-            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
-                                    Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulence.
+                                    Macroturbulence is caused by macroscopic velocity fields of the gas in the solar
                                     atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
                                     for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
                                     calculation, it can be handled somewhat by convolving the synthetic spectra with a
                                     gaussian. This argument should be a list of the the raw data for each abundance that
-                                    does not handle the macroturbulance.
+                                    does not handle the macroturbulence.
             
             inten_scale_factor    : A list of the scale factors of each abundance.
             
-            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulence
                                     is neglected. These intensities are given in the inten_no_macroturb argument.
             
             obs_eq_width          : The equivalent width of the observed line.
@@ -416,7 +416,7 @@ class EWRegionResult(object):
         self.abund = abund
         self.eq_width_unit = eq_width_unit
         
-        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulance, as
+        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulence, as
         # well as the corresponding chi squared. This is done for each abundance.
         self.no_macroturb_diffs = np.array([i - i_nm for i, i_nm in zip(inten, inten_no_macroturb)])
         self.no_macroturb_chisq = np.array([(inten_diffs**2.0).sum() for inten_diffs in self.no_macroturb_diffs])
@@ -773,7 +773,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
             rinten.append(shifted_inten)
             
             # Store the scaled intensities and scaling factor (the max value of the unscaled intensities) for the intensities
-            # that neglect macroturbulance... also make sure it is shifted according to the best shift.
+            # that neglect macroturbulence... also make sure it is shifted according to the best shift.
             inten_max_nm[a] = rsynth_inten_nm.max()
             shifted_inten = np.interp(rwav, rwav - best_shift, rsynth_inten_nm / inten_max_nm[a])
             rsynth_inten_all_nm.append(shifted_inten)
@@ -996,7 +996,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
 
         # Create an array that will contain the maximum intensities of the different abundances, for
-        # this region. Note that the intensities in question are neglecting macroturbulance.
+        # this region. Note that the intensities in question are neglecting macroturbulence.
         inten_max_nm = np.zeros(len(abund_updates), dtype = np.float64)
         
         # Create an array that will contain the equivalent widths of the different abundances, for
@@ -1012,7 +1012,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         
         # Create an array that will store the scaled synthetic intensities for each abundance. Note that it
         # does not carry the convolved intensities. This is essentially the synthetic intensities when
-        # macroturbulance is neglected.
+        # macroturbulence is neglected.
         sinten_nm = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
         
         # Get the observed wavelengths and intensities of the region
@@ -1053,7 +1053,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
             rsynth_inten /= inten_max[ai]
             
             # Store the scaled intensities and scaling factor (the max value of the unscaled intensities) for the intensities
-            # that neglect macroturbulance
+            # that neglect macroturbulence
             inten_max_nm[ai] = rsynth_inten_nm.max()
             sinten_nm[ai,:] = rsynth_inten_nm / inten_max_nm[ai]
             
