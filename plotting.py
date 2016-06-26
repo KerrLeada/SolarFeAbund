@@ -266,6 +266,73 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
     _plt.ylabel("Normalized intensity")
     _plt.show()
 
+def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, linestyle_obs = "-", legend_pos = 4):
+    """
+    Plots the intensity that handles macroturbulance and the corresponding intensity that does not handle macroturbulance against
+    the wavelength, for an abundance. If no abundance is specified, the best fit abundance is used. The required argument is
+    
+        region_result : The region result object, containing the results of the calculations for a
+                        specific region.
+    
+    The optional arguments are
+        
+        abund_index   : The abundance index to show the macroturbulance for. If set to None the best
+                        abundance will be used.
+                        Default is None.
+        
+        show_obs      : Determines if the observed spectrum should be shown as well.
+                        Default is True.
+        
+        alpha_obs     : Determines the alpha value of the observed spectrum, if it where to be plotted.
+                        Essentially this sets how transperant the observed spectrum is. A value of 0 is
+                        invisible and a value of 1 is fully visible.
+                        Default is 1.
+        
+        linestyle_obs : Determines the style with which the observed spectrum should be drawn. A value of
+                        "-" means it is drawn as a solid line.
+                        Default is "-".
+        
+        legend_pos    : Determines the position of the legend. Valid values are
+                        
+                            0  : best
+                            1  : upper right
+                            2  : upper left
+                            3  : lower left
+                            4  : lower right
+                            5  : right
+                            6  : center left
+                            7  : center right
+                            8  : lower center
+                            9  : upper center
+                            10 : center
+                        
+                        Alternatively a 2 element tuple can be used to specify the x and y position (first element
+                        is x, second element is y) of the lower left corner of the legend. This position has to be
+                        in the coordinates of the plot, so x is wavelength and y is normalized intensity.
+                        Default is 4.
+
+    """
+
+    # If the abundance index is None, set it to the index of the best fit abundance    
+    if abund_index == None:
+        abund_index = region_result.best_index
+        
+    # Plot the intensities without macroturbulance and then with macroturbulance against the wavelength
+    lbl_nm = _plt.plot(region_result.wav, region_result.inten_no_macroturb[abund_index], color = "red", label = "No mt")
+    lbl = _plt.plot(region_result.wav, region_result.inten[abund_index], color = "green", label = "With mt")
+    labels = [lbl_nm[0], lbl[0]]
+    
+    # Plot the observed spectrum if show_obs is true
+    if show_obs and alpha_obs != 0.0:
+        lbl_obs = _plt.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "Observed", alpha = alpha_obs, linestyle = linestyle_obs)
+        labels.append(lbl_obs[0])
+    
+    # Add the legend showing which curve is which, as well as the x-axis and y-axis labels... then show the plot
+    _plt.legend(handles = labels, loc = legend_pos)
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.ylabel("Normalized intensity")
+    _plt.show()
+
 def _estimate_line_wavelength(region):
     tck = si.splrep(region.wav, region.inten)
     min_wav = region.wav[region.inten == min(region.inten)][0]

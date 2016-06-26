@@ -105,6 +105,16 @@ class ChiRegionResult(object):
                                   are scaled so that the maximum is 1. To get the unscaled intensities for an abundance, multiply
                                   them with the corresponding scale factor, given in inten_scale_factor.
         
+        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
+                                  Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+                                  atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
+                                  for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
+                                  calculation, it can be handled somewhat by convolving the synthetic spectra with a
+                                  gaussian. This attribute contains a list of the the raw data per abundance that does not
+                                  handle the macroturbulance. As with the inten attribute, this is scaled to 1. The
+                                  unscaled intensities for an abundance can be obtained by multiplying with the corresponding
+                                  scale factor in inten_scale_factor_nm.
+        
         shift                   : An array of the best shift for each abundance.
         
         chisq                   : The chi squared of each abundance, for the best shift. This is an
@@ -117,7 +127,18 @@ class ChiRegionResult(object):
         
         inten_scale_factor      : A list of the scale factors of each abundance.
         
+        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+                                  has been neglected. This is essentially the maximum unscaled intensities for the abundances, when
+                                  macroturbulance is not handled.
+        
         abund                   : An array of the iron abundances for which the synthetic data was synthezised.
+        
+        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulance and the intensities that
+                                  neglect the macroturbulance, for each abundance. Note that it takes the intensity with macroturbulance
+                                  minus the intensity without macriturbulance for a given abundance.
+        
+        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulance and the intensities that neglect
+                                  the macroturbulance, for each abundance.
         
         best_index              : The index of the best iron abundance.
         
@@ -148,32 +169,43 @@ class ChiRegionResult(object):
     There are other standards for abundance, but they are not used here.
     """
 
-    def __init__(self, region, wav, inten, shift, chisq, shift_all, chisq_all, inten_scale_factor, abund):
+    def __init__(self, region, wav, inten, inten_no_macroturb, shift, chisq, shift_all, chisq_all, inten_scale_factor, inten_scale_factor_nm, abund):
         """
         ChiRegionResult is a class that represents result of a region, using chi squared to fit the synthetic
         data to the observed data. This is the constructor. The arguments are
         
-            region             : The region these results apply to. This is an instance of the regions.Region class.
+            region                : The region these results apply to. This is an instance of the regions.Region class.
             
-            wav                : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
+            wav                   : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
             
-            inten              : The synthetic intensities, for each abundance. It should be a two dimensional array. The
-                                 rows represents the intensities of the different abundances. Note that the intensities
-                                 should be scaled so that the maximum is 1.
+            inten                 : The synthetic intensities, for each abundance. It should be a two dimensional array. The
+                                    rows represents the intensities of the different abundances. Note that the intensities
+                                    should be scaled so that the maximum is 1.
             
-            shift              : A list of the best shift for each abundance.
+            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
+                                    Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+                                    atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
+                                    for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
+                                    calculation, it can be handled somewhat by convolving the synthetic spectra with a
+                                    gaussian. This argument should be a list of the the raw data for each abundance that
+                                    does not handle the macroturbulance.
             
-            chisq              : The chi squared of each abundance, for the best shift.
+            shift                 : A list of the best shift for each abundance.
             
-            shift_all          : A list of all shifts.
+            chisq                 : The chi squared of each abundance, for the best shift.
             
-            chisq_all          : A list of the chi squared values for each shift and abundance. This is a two dimensional
-                                 array where each row correlates to an abundance. The content of a row is the chi squared
-                                 values for all the shifts, for the abundance in question.
+            shift_all             : A list of all shifts.
             
-            inten_scale_factor : A list of the scale factors of each abundance.
+            chisq_all             : A list of the chi squared values for each shift and abundance. This is a two dimensional
+                                    array where each row correlates to an abundance. The content of a row is the chi squared
+                                    values for all the shifts, for the abundance in question.
             
-            abund              : A list of the abundances for which the synthetic data was synthezised.
+            inten_scale_factor    : A list of the scale factors of each abundance.
+            
+            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+                                    is neglected. These intensities are given in the inten_no_macroturb argument.
+            
+            abund                 : A list of the abundances for which the synthetic data was synthezised.
         
         The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
         Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
@@ -191,12 +223,19 @@ class ChiRegionResult(object):
         self.region = region
         self.wav = wav
         self.inten = inten
+        self.inten_no_macroturb = inten_no_macroturb
         self.inten_scale_factor = inten_scale_factor
+        self.inten_scale_factor_nm = inten_scale_factor_nm
         self.shift = shift
         self.chisq = chisq
         self.shift_all = shift_all
         self.chisq_all = chisq_all
         self.abund = abund
+        
+        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulance, as
+        # well as the corresponding chi squared. This is done for each abundance.
+        self.no_macroturb_diffs = np.array([i - i_nm for i, i_nm in zip(inten, inten_no_macroturb)])
+        self.no_macroturb_chisq = np.array([(inten_diffs**2.0).sum() for inten_diffs in self.no_macroturb_diffs])
         
         # Get the best values. These are essentially the values that corresponds to a minimum
         # chi squared.
@@ -221,14 +260,16 @@ class ChiRegionResult(object):
 
         # Concatenate the numpy arrays, with the data from this result first
         inten = np.concatenate((self.inten, other.inten), axis = 0)
+        inten_no_macroturb = np.concatenate((self.inten_no_macroturb, other.inten_no_macroturb), axis = 0)
         shift = np.concatenate((self.shift, other.shift), axis = 0)
         chisq = np.concatenate((self.chisq, other.chisq), axis = 0)
         chisq_all = np.concatenate((self.chisq_all, other.chisq_all), axis = 0)
         inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
+        inten_scale_factor_nm = np.concatenate((self.inten_scale_factor_nm, other.inten_scale_factor_nm), axis = 0)
         abund = np.concatenate((self.abund, other.abund), axis = 0)
         
         # Return the fused result
-        return ChiRegionResult(self.region, self.wav, inten, shift, chisq, self.shift_all, chisq_all, inten_scale_factor, abund)
+        return ChiRegionResult(self.region, self.wav, inten, inten_no_macroturb, shift, chisq, self.shift_all, chisq_all, inten_scale_factor, inten_scale_factor_nm, abund)
 
 class EWRegionResult(object):
     """
@@ -245,8 +286,22 @@ class EWRegionResult(object):
                                   abundance, multiply its intensity with the corresponding scale factor (which can
                                   be obtained from the inten_scale_factor attribute)
         
+        inten_no_macroturb      : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
+                                  Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+                                  atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
+                                  for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
+                                  calculation, it can be handled somewhat by convolving the synthetic spectra with a
+                                  gaussian. This attribute contains a list of the the raw data per abundance that does not
+                                  handle the macroturbulance. As with the inten attribute, this is scaled to 1. The
+                                  unscaled intensities for an abundance can be obtained by multiplying with the corresponding
+                                  scale factor in inten_scale_factor_nm.
+        
         inten_scale_factor      : A list of the scale factors of each abundance. This is essentially the maximum unscaled
                                   intensities for the abundances.
+        
+        inten_scale_factor_nm   : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+                                  has been neglected. This is essentially the maximum unscaled intensities for the abundances, when
+                                  macroturbulance is not handled.
         
         obs_eq_width            : The equivalent width of the observed line.
         
@@ -256,6 +311,15 @@ class EWRegionResult(object):
                                   This is an array.
         
         abund                   : A list of the iron abundances for which the synthetic data was synthezised.
+        
+        no_macroturb_diffs      : The differences between the intensities that handles the macroturbulance and the intensities that
+                                  neglect the macroturbulance, for each abundance. Note that it takes the intensity with macroturbulance
+                                  minus the intensity without macriturbulance for a given abundance.
+        
+        no_macroturb_chisq      : The chi squared of the intensities that handles the macroturbulance and the intensities that neglect
+                                  the macroturbulance, for each abundance.
+        
+        no_macroturb_eq_width   : The equivalent width of the intensities that neglects macroturbulance, for each intensity.
         
         eq_width_unit           : The unit of the equivalent width. This should come from astropy.units.
         
@@ -290,30 +354,41 @@ class EWRegionResult(object):
     There are other standards for abundance, but they are not used here.
     """
     
-    def __init__(self, region, wav, inten, inten_scale_factor, obs_eq_width, eq_width, diff, abund, eq_width_unit):
+    def __init__(self, region, wav, inten, inten_no_macroturb, inten_scale_factor, inten_scale_factor_nm, obs_eq_width, eq_width, diff, abund, eq_width_unit):
         """
         EWRegionResult is a class that represents result of a region, using the equivalent width to fit the synthetic
         data to the observed data. This is the constructor. The arguments are
         
-            region             : The region these results apply to. This is an instance of the regions.Region class.
+            region                : The region these results apply to. This is an instance of the regions.Region class.
             
-            wav                : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
+            wav                   : The synthetic wavelengths. This should be an array of one dimension, or of a similar type.
             
-            inten              : The synthetic intensities, for each abundance. It should be a two dimensional array. The
-                                 rows represents the intensities of the different abundances. Note that the intensities
-                                 should be scaled so that the maximum is 1.
+            inten                 : The synthetic intensities, for each abundance. It should be a two dimensional array. The
+                                    rows represents the intensities of the different abundances. Note that the intensities
+                                    should be scaled so that the maximum is 1.
             
-            inten_scale_factor : A list of the scale factors of each abundance.
+            inten_no_macroturb    : The synthetic intensities for each abundance, neglecting the effects of macroturbulance.
+                                    Macroturbulance is caused by macroscopic velocity fields of the gas in the solar
+                                    atmosphere. It causes Doppler shifts and thus can lead to additional broadening effects
+                                    for lines. To fully handle this, a 3D calculation is needed. In the case of a 1D
+                                    calculation, it can be handled somewhat by convolving the synthetic spectra with a
+                                    gaussian. This argument should be a list of the the raw data for each abundance that
+                                    does not handle the macroturbulance.
             
-            obs_eq_width       : The equivalent width of the observed line.
+            inten_scale_factor    : A list of the scale factors of each abundance.
             
-            eq_width           : The equivalent widths of the synthetic lines of the different abundances.
+            inten_scale_factor_nm : A list of the scale factors of each abundance, for the intensities for which the macroturbulance
+                                    is neglected. These intensities are given in the inten_no_macroturb argument.
             
-            diff               : The differences between the observed and synthetic equivalent widths, for each abundance.
+            obs_eq_width          : The equivalent width of the observed line.
             
-            abund              : A list of the abundances for which the synthetic data was synthezised.
+            eq_width              : The equivalent widths of the synthetic lines of the different abundances.
             
-            eq_width_unit      : The unit of the equivalent width. This should come from astropy.units.
+            diff                  : The differences between the observed and synthetic equivalent widths, for each abundance.
+            
+            abund                 : A list of the abundances for which the synthetic data was synthezised.
+            
+            eq_width_unit         : The unit of the equivalent width. This should come from astropy.units.
         
         The iron abundances are stored in an array of floats. These numbers represents the relative abundance of iron compared to hydrogen.
         Specifically, if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected
@@ -332,12 +407,22 @@ class EWRegionResult(object):
         self.region = region
         self.wav = wav
         self.inten = inten
+        self.inten_no_macroturb = inten_no_macroturb
         self.inten_scale_factor = inten_scale_factor
+        self.inten_scale_factor_nm = inten_scale_factor_nm
         self.obs_eq_width = obs_eq_width
         self.eq_width = eq_width
         self.diff = diff
         self.abund = abund
         self.eq_width_unit = eq_width_unit
+        
+        # Calculate the differences between the intensities that handles and the intensities that neglects the macroturbulance, as
+        # well as the corresponding chi squared. This is done for each abundance.
+        self.no_macroturb_diffs = np.array([i - i_nm for i, i_nm in zip(inten, inten_no_macroturb)])
+        self.no_macroturb_chisq = np.array([(inten_diffs**2.0).sum() for inten_diffs in self.no_macroturb_diffs])
+        
+        conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
+        self.no_macroturb_eq_width = np.array([conv_factor*_equivalent_width(wav, i) for i in inten_no_macroturb])
         
         # Get the best values
         best = np.argmin(abs(diff))
@@ -366,13 +451,15 @@ class EWRegionResult(object):
 
         # Concatenate the numpy arrays, with the data from this result first
         inten = np.concatenate((self.inten, other.inten), axis = 0)
+        inten_no_macroturb = np.concatenate((self.inten_no_macroturb, other.inten_no_macroturb), axis = 0)
         inten_scale_factor = np.concatenate((self.inten_scale_factor, other.inten_scale_factor), axis = 0)
+        inten_scale_factor_nm = np.concatenate((self.inten_scale_factor_nm, other.inten_scale_factor_nm), axis = 0)
         eq_width = np.concatenate((self.eq_width, other.eq_width*conv_factor), axis = 0)
         diff = np.concatenate((self.diff, other.diff*conv_factor), axis = 0)
         abund = np.concatenate((self.abund, other.abund), axis = 0)
         
         # Return a new region result
-        return EWRegionResult(self.region, self.wav, inten, inten_scale_factor, self.obs_eq_width, eq_width, diff, abund, self.eq_width_unit)
+        return EWRegionResult(self.region, self.wav, inten, inten_no_macroturb, inten_scale_factor, inten_scale_factor_nm, self.obs_eq_width, eq_width, diff, abund, self.eq_width_unit)
 
 class SynthResult(object):
     """
@@ -614,6 +701,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
         
         # Array containing the maximum synthetic intensities for each abundance
         inten_max = np.zeros(abund_count, dtype = np.float64)
+        inten_max_nm = np.zeros(abund_count, dtype = np.float64)
         
         # Get the observed wavelengths and intensities in the current region
         robs_wav = r.wav
@@ -630,29 +718,34 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
         # within the current region
         rwav_all = []
         rsynth_inten_all = []
+        rsynth_inten_all_nm = []
 
         for a, synth_inten in enumerate(synth_data):
             # Get the relevant synthetic intensity
             synth_inten = synth_inten[0,0,0,:,0]
-            inten_max[a] = synth_inten.max()
             
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
-            rwav, rsynth_inten = r.get_contained(wav, synth_inten, left_padding = 1e-9)
+            rwav, rsynth_inten_nm = r.get_contained(wav, synth_inten, left_padding = 1e-9)
             
             # Handle errors due to math with floating point numbers and things like that
             if len(rwav) != nlambda:
                 if verbose:
-                    print("The length of the synthetic data in the region did not match nlambda. Length:", len(rwav), "  nlambda:", nlambda)
+                    print("******************")
+                    print("The length of the synthetic data in the region did not match nlambda.")
+                    print("Length of synthetic data:", len(rwav), ", nlambda:", nlambda)
+                    print("Region start:", r.lambda0, ", region end:", r.lambda_end)
+                    print("******************")
                 rwav = rwav[:nlambda]
-                rsynth_inten = rsynth_inten[:nlambda]
+                rsynth_inten_nm = rsynth_inten_nm[:nlambda]
 
             # CHECK IF THIS DESCRIPTION IS CORRECT!!!
             #
             # Convolve the synthetic data. This is done to handle broadening effects due to convective motions in the
             # solar atmosphere. These broadening effects has a Gaussian distribution, so to take it into account we
             # need to calculate the convolution of the synthetic lines and the gaussian profile calculated above.
-            rsynth_inten = _convolve(rsynth_inten, reduced_psf)
-            rsynth_inten /= rsynth_inten.max()
+            rsynth_inten = _convolve(rsynth_inten_nm, reduced_psf)
+            inten_max[a] = rsynth_inten.max()
+            rsynth_inten /= inten_max[a]
 #            rsynth_inten = rsynth_inten * (r.cont/r.cont.max()) / rsynth_inten.max()
         
             # Store the synthetic wavelengths and intensities in this region for later calculations
@@ -678,6 +771,12 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
             # Calculate the shifted intensity spectrum using linear interpolation
             shifted_inten = np.interp(rwav, rwav - best_shift, rsynth_inten)
             rinten.append(shifted_inten)
+            
+            # Store the scaled intensities and scaling factor (the max value of the unscaled intensities) for the intensities
+            # that neglect macroturbulance... also make sure it is shifted according to the best shift.
+            inten_max_nm[a] = rsynth_inten_nm.max()
+            shifted_inten = np.interp(rwav, rwav - best_shift, rsynth_inten_nm / inten_max_nm[a])
+            rsynth_inten_all_nm.append(shifted_inten)
 
         # Calculate the chi squared for each abundance, for the best shift
         for a, (rwav, rsynth_inten) in enumerate(zip(rwav_all, rsynth_inten_all)):
@@ -685,7 +784,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
             chisq[a] = ((robs_inten - interp_syn)**2).sum()
 
         # Add the result of the current region to the list of region results
-        region_result.append(ChiRegionResult(r, rwav, np.array(rinten), rshift, chisq, shift, rchisq, inten_max, abunds))
+        region_result.append(ChiRegionResult(r, rwav, np.array(rinten), np.array(rsynth_inten_all_nm), rshift, chisq, shift, rchisq, inten_max, inten_max_nm, abunds))
 
     # If in verbose mode, display fitting timing
     if verbose:
@@ -849,7 +948,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
     """
     
-    # Convsersion factor
+    # Conversion factor
     conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
     
     # Create the abundance updates and check them
@@ -895,6 +994,10 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         # Create an array that will contain the maximum intensities of the different abundances, for
         # this region.
         inten_max = np.zeros(len(abund_updates), dtype = np.float64)
+
+        # Create an array that will contain the maximum intensities of the different abundances, for
+        # this region. Note that the intensities in question are neglecting macroturbulance.
+        inten_max_nm = np.zeros(len(abund_updates), dtype = np.float64)
         
         # Create an array that will contain the equivalent widths of the different abundances, for
         # this region.
@@ -906,6 +1009,11 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         
         # Create an array that will store the scaled and convolved synthetic intensities for each abundance.
         sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
+        
+        # Create an array that will store the scaled synthetic intensities for each abundance. Note that it
+        # does not carry the convolved intensities. This is essentially the synthetic intensities when
+        # macroturbulance is neglected.
+        sinten_nm = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
         
         # Get the observed wavelengths and intensities of the region
         robs_wav = r.wav
@@ -922,7 +1030,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         
         for ai, a in enumerate(abund_updates):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
-            rwav, rsynth_inten = r.get_contained(wav, synth_inten[ai], left_padding = 1e-9)
+            rwav, rsynth_inten_nm = r.get_contained(wav, synth_inten[ai], left_padding = 1e-9)
             
             # Handle errors due to math with floating point numbers
             if len(rwav) != r.nlambda:
@@ -933,22 +1041,27 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
                     print("Region start:", r.lambda0, ", region end:", r.lambda_end)
                     print("******************")
                 rwav = rwav[:r.nlambda]
-                rsynth_inten = rsynth_inten[:r.nlambda]
+                rsynth_inten_nm = rsynth_inten_nm[:r.nlambda]
 
             # CHECK IF THIS DESCRIPTION IS CORRECT!!!
             #
             # Convolve the synthetic data. This is done to handle broadening effects due to convective motions in the
             # solar atmosphere. These broadening effects has a Gaussian distribution, so to take it into account we
             # need to calculate the convolution of the synthetic lines and the gaussian profile calculated above.
-            rsynth_inten = _convolve(rsynth_inten, reduced_psf)
+            rsynth_inten = _convolve(rsynth_inten_nm, reduced_psf)
             inten_max[ai] = rsynth_inten.max()
             rsynth_inten /= inten_max[ai]
+            
+            # Store the scaled intensities and scaling factor (the max value of the unscaled intensities) for the intensities
+            # that neglect macroturbulance
+            inten_max_nm[ai] = rsynth_inten_nm.max()
+            sinten_nm[ai,:] = rsynth_inten_nm / inten_max_nm[ai]
             
             # Calculate the equivalent width
             eq_width[ai] = _equivalent_width(rwav, rsynth_inten) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rsynth_inten
-        result.append(EWRegionResult(r, rwav, sinten, inten_max, obs_ew, eq_width, diff, abund_range, eq_width_unit))
+        result.append(EWRegionResult(r, rwav, sinten, sinten_nm, inten_max, inten_max_nm, obs_ew, eq_width, diff, abund_range, eq_width_unit))
 
     # If in verbose mode, display fitting timing
     if verbose:
