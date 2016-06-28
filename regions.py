@@ -174,6 +174,7 @@ class Region(object):
         lambda0 = reg.lambda0 + left
         lambda_end = reg.lambda_end - right
         wav, inten = get_within(lambda0, lambda_end, reg.wav, reg.inten)
+        _, cont = get_within(lambda0, lambda_end, reg.wav, reg.cont)
         inten_max = inten.max()
         
         if nlambda == None:
@@ -190,7 +191,7 @@ class Region(object):
         else:
             raise Exception("dlambda must be None or a function, but was an instance of " + type(dlambda))
         
-        if lambda0 + dlambda*nlambda > lambda_end + dlambda/100:
+        if lambda0 + dlambda*nlambda > lambda_end + dlambda/100.0:
             raise Exception("The given dlambda and nlambda gives an ending wavelength larger then expected")
         
         reg.lambda0 = lambda0
@@ -198,6 +199,7 @@ class Region(object):
         reg.inten_scale_factor = inten_max * reg.inten_scale_factor
         reg.wav = wav
         reg.inten = inten
+        reg.cont = cont
         reg.nlambda = nlambda
         reg.dlambda = dlambda
         reg.length = wav.size

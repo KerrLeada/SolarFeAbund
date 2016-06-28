@@ -147,7 +147,7 @@ def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True
     plotting.plot_bisect(result.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, only_best_synth = only_best_synth, num = num)
 
 def plot_dwav(region_nr):
-    plotting.plot_delta(regions[region_nr].wav)
+    plotting.plot_delta(regions[region_nr].wav, xlabel = "$i$", ylabel = "$\\lambda_i - \\lambda_{i - 1}$")
 
 if _MODE_SHOW_PLOTS:
     plot_spec(show_unshifted = _MODE_SHOW_UNSHIFTED)

@@ -9,6 +9,7 @@ from __future__ import division
 
 import numpy as np
 import matplotlib.pyplot as _plt
+import matplotlib.colors
 import abundutils as _au
 import satlas as _sa
 import scipy.interpolate as si
@@ -23,6 +24,12 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#AF009F", "#0F3FF0", "#F0FA0F",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
+
+# Set the font to the default
+_plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
+
+# Set the font size of the plots
+plot_font_size = 11
 
 def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_observed = True, obs_pad = 0.0):
     """
@@ -63,11 +70,11 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
     if shifts != None:
         shifts = shifts*np.ones(len(region_result.abund), dtype = np.float64) if np.isscalar(shifts) else list(shifts)
     
-    # Set the title to display the region number, the mode and if the spacing between the datapoints in the synth region was fitted
-    _plt.title("Interval: " + str((region_result.region.lambda0, round(region_result.region.lambda_end, 4))) +
-              "  delta: " + str(region_result.region.dlambda) +
-              "  steps: " + str(region_result.region.nlambda) +
-              "  scale: " + str(region_result.region.scale_factor))
+#    # Set the title to display the region number, the mode and if the spacing between the datapoints in the synth region was fitted
+#    _plt.title("Interval: " + str((region_result.region.lambda0, round(region_result.region.lambda_end, 4))) +
+#              "  delta: " + str(region_result.region.dlambda) +
+#              "  steps: " + str(region_result.region.nlambda) +
+#              "  scale: " + str(region_result.region.scale_factor))
 
     # Plot the synthetic spectrum
     for a in range(region_result.inten.shape[0]):
@@ -103,11 +110,11 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
         # Plot the spectrum, followed by the synth lines
         _plt.plot(rwav, rinten, color = "blue")
     
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Normalized intensity")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
-def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, plot_title = None, cgs = True):
+def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
     """
     Plots the spectrum that is coverd by the given region results. The required argument is
 
@@ -127,17 +134,10 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
                          
         padding        : Determines how much excess data from the observed spectrum should be shown.
                          Default is 0.
-
-        plot_title     : Sets the plot title.
-                         Default is None.
         
         cgs            : Determines is cgs units should be used.
                          Default is True.
     """
-
-    # Set the plot title
-    if plot_title:
-        _plt.title(plot_title)
 
     # Plot the regions
     for r in region_results:
@@ -167,8 +167,8 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
         if show_continuum:
             _plt.plot(wl, cont, color = "blue", linestyle = "--", alpha = 0.5)
     
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Normalized intensity")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
 def plot_vs_abund(abund, values, ylabel = None):
@@ -187,9 +187,9 @@ def plot_vs_abund(abund, values, ylabel = None):
     """
 
     _plt.plot(abund, values)
-    _plt.xlabel("Fe abundance")
+    _plt.xlabel("Fe abundance", fontsize = plot_font_size)
     if ylabel != None:
-        _plt.ylabel(ylabel)
+        _plt.ylabel(ylabel, fontsize = plot_font_size)
     _plt.show()
 
 def plot_chisq(region_result):
@@ -262,8 +262,8 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
             _plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
         _plt.plot(bwav, binten, color = "blue")
 
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Normalized intensity")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
 def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, linestyle_obs = "-", legend_pos = 4):
@@ -318,8 +318,8 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
         abund_index = region_result.best_index
         
     # Plot the intensities without macroturbulence and then with macroturbulence against the wavelength
-    lbl_nm = _plt.plot(region_result.wav, region_result.inten_no_macroturb[abund_index], color = "red", label = "No mt")
-    lbl = _plt.plot(region_result.wav, region_result.inten[abund_index], color = "green", label = "With mt")
+    lbl_nm = _plt.plot(region_result.wav, region_result.inten_no_macroturb[abund_index], color = "red", label = "Not convolved")
+    lbl = _plt.plot(region_result.wav, region_result.inten[abund_index], color = "green", label = "Convolved")
     labels = [lbl_nm[0], lbl[0]]
     
     # Plot the observed spectrum if show_obs is true
@@ -328,9 +328,9 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
         labels.append(lbl_obs[0])
     
     # Add the legend showing which curve is which, as well as the x-axis and y-axis labels... then show the plot
-    _plt.legend(handles = labels, loc = legend_pos)
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Normalized intensity")
+    _plt.legend(handles = labels, loc = legend_pos, fontsize = plot_font_size)
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
 def _estimate_line_wavelength(region):
@@ -359,8 +359,8 @@ def plot_abund(region_results, with_H_as_12 = True):
         y += 12.0
     
     _plt.plot(x, y, ".")
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Fe abundance")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Fe abundance", fontsize = plot_font_size)
     _plt.show()
 
 def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
@@ -384,7 +384,7 @@ def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
     if with_H_as_12:
         abundances += 12.0
     _plt.hist(abundances, bins = bins)
-    _plt.xlabel("Fe abundance")
+    _plt.xlabel("Fe abundance", fontsize = plot_font_size)
     _plt.show()
 
 def plot_scaled(region):
@@ -397,8 +397,8 @@ def plot_scaled(region):
     
     _plt.plot(region.wav, region.inten, "b")
     _plt.plot(region.wav, region.inten*region.inten_scale_factor/region.cont, "r")
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
-    _plt.ylabel("Normalized intensity")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
 def plot_in(lambda0, lambda_end, *args, **kwargs):
@@ -428,11 +428,11 @@ def plot_in(lambda0, lambda_end, *args, **kwargs):
 
     # Plot the spectrum
     _plt.plot(wav, intensity, *args, **kwargs)
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]")
+    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
     if normalize:
-        _plt.ylabel("Normalized intensity")
+        _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     else:
-        _plt.ylabel("Intensity")
+        _plt.ylabel("Intensity", fontsize = plot_font_size)
     _plt.show()
 
 def plot_around(lambda_mid, delta, *args, **kwargs):
@@ -452,7 +452,7 @@ def plot_around(lambda_mid, delta, *args, **kwargs):
     
     plot_in(lambda_mid - delta, lambda_mid + delta, *args, **kwargs)
 
-def plot_delta(y, x = None, *args, **kwargs):
+def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
     """
     Plots the changes in y between data points. Specifically, it plots the differences between the
     individual elements in y. The required argument is
@@ -471,5 +471,49 @@ def plot_delta(y, x = None, *args, **kwargs):
     if x == None:
         x = np.arange(len(dy))
     _plt.plot(x, dy, ".", *args, **kwargs)
+    if xlabel != None:
+        _plt.xlabel(xlabel, fontsize = plot_font_size)
+    if ylabel != None:
+        _plt.ylabel(ylabel, fontsize = plot_font_size)
+    _plt.show()
+
+def plot_region_mosaic(regions, rows, columns):
+    """
+    Plots the given regions in a mosaic with the given amount of rows and columns. The arguments are
+    
+        regions : An iterable of Region objects.
+        
+        rows    : The number of rows.
+        
+        columns : The number of columns.
+    """
+    
+    # Make sure there are enough "cells"
+    if rows*columns < len(regions):
+        raise Exception("Each region must have a cell. There where only " + str(rows*columns) + " cells while there was " + str(len(regions)) + " regions.")
+    
+    # Plot the mosaic of regions
+    fig = _plt.figure()
+    main_ax = fig.add_subplot(1,1,1)
+    for i, r in enumerate(regions):
+        ax = fig.add_subplot(rows, columns, i + 1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_ylim([0,1.02])
+        ax.plot(r.wav, r.inten)
+
+    # Hide the "main subplot", except for the labels on the x and y axes
+    invisible = matplotlib.colors.colorConverter.to_rgba("#FFFFFF", alpha = 0.0)
+    main_ax.set_axis_bgcolor(invisible)
+    main_ax.spines["top"].set_color("none")
+    main_ax.spines["bottom"].set_color("none")
+    main_ax.spines["left"].set_color("none")
+    main_ax.spines["right"].set_color("none")
+    main_ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
+    main_ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    main_ax.set_ylabel(u"Normalized intensity", fontsize = plot_font_size)
+    
+    # Show the plot
+    fig.tight_layout()
     _plt.show()
 
