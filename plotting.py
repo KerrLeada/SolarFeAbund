@@ -477,30 +477,35 @@ def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
         _plt.ylabel(ylabel, fontsize = plot_font_size)
     _plt.show()
 
-def plot_region_mosaic(regions, rows, columns):
+def plot_mosaic(objects, rows, columns, plot_func):
     """
-    Plots the given regions in a mosaic with the given amount of rows and columns. The arguments are
+    Plots the given list of objects in a mosaic with the given amount of rows and columns, using the given plotting
+    function. The arguments are
     
-        regions : An iterable of Region objects.
+        regions   : An iterable of objects of some type.
         
-        rows    : The number of rows.
+        rows      : The number of rows.
         
-        columns : The number of columns.
+        columns   : The number of columns.
+        
+        plot_func : The function used to plot an object. It takes two required arguments. The first is the axis object
+                    and the second is the object to be plotted.
     """
     
     # Make sure there are enough "cells"
-    if rows*columns < len(regions):
-        raise Exception("Each region must have a cell. There where only " + str(rows*columns) + " cells while there was " + str(len(regions)) + " regions.")
+    if rows*columns < len(objects):
+        raise Exception("Each object must have a cell. There where only " + str(rows*columns) + " cells while there was " + str(len(objects)) + " objects.")
     
     # Plot the mosaic of regions
     fig = _plt.figure()
     main_ax = fig.add_subplot(1,1,1)
-    for i, r in enumerate(regions):
+    for i, obj in enumerate(objects):
         ax = fig.add_subplot(rows, columns, i + 1)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_ylim([0,1.02])
-        ax.plot(r.wav, r.inten)
+        plot_func(ax, obj)
+#        ax.plot(r.wav, r.inten)
 
     # Hide the "main subplot", except for the labels on the x and y axes
     invisible = matplotlib.colors.colorConverter.to_rgba("#FFFFFF", alpha = 0.0)
@@ -517,3 +522,34 @@ def plot_region_mosaic(regions, rows, columns):
     fig.tight_layout()
     _plt.show()
 
+def plot_region_mosaic(regions, rows, columns):
+    """
+    Plots the given regions in a mosaic with the given amount of rows and columns. The arguments are
+    
+        regions : An iterable of Region objects.
+        
+        rows    : The number of rows.
+        
+        columns : The number of columns.
+    """
+    
+    plot_mosaic(regions, rows, columns, lambda ax, r: ax.plot(r.wav, r.inten))
+
+def plot_result_mosaic(region_results, rows, columns):
+    """
+    Plots the given region results in a mosaic with the given amount of rows and columns. The arguments are
+    
+        region_results : An iterable of RegionResult objects.
+        
+        rows           : The number of rows.
+        
+        columns        : The number of columns.
+    """
+    
+    # Function used to plot a single cell
+    def plot_result(ax, reg_result):
+        reg = reg_result.region
+        ax.plot(reg_result.wav, reg_result.best_inten, color = "red")
+        ax.plot(reg.wav, reg.inten, color = "blue")
+
+    plot_mosaic(region_results, rows, columns, plot_result)
