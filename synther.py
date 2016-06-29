@@ -331,7 +331,7 @@ class EWRegionResult(object):
         
         best_eq_width           : The equivalent width of the best iron abundance.
         
-        best diff               : The difference between the equivalent widths of the synthetic and observed lines, for
+        best_diff               : The difference between the equivalent widths of the synthetic and observed lines, for
                                   the best iron abundance. Specifically, this is the smallest such difference and the best
                                   abundance is simply the corresponding abundance.
         
@@ -475,6 +475,13 @@ class SynthResult(object):
             wav            : The wavelengths of the synthetic data.
             
             raw_synth_data : A list containing the raw synthetic data.
+            
+            best_abunds    : An array of the best abundances of each region.
+            
+            abund          : The mean abundance. It is the mean of best_abunds.
+            
+            error_abund    : The error of the mean abundance. This is essentially the standard deviation
+                             of best_abunds.
     """
     
     def __init__(self, region_result, region_data, wav, raw_synth_data):

@@ -7,6 +7,7 @@ with information about regions.
 from __future__ import print_function
 from __future__ import division
 
+import scipy.interpolate as si
 import numpy as np
 import satlas as sa
 
@@ -136,6 +137,19 @@ class Region(object):
         """
         
         return get_within(self.lambda0, self.lambda_end, wav, inten, left_padding = left_padding, right_padding = right_padding)
+
+    def estimate_minimum(self, num = 1000):
+        """
+        Estimates the minimum intensity using quadratic interpolation. The optional argument is
+        
+            num : The number of points to use when estimating the minimum.
+                  Default is 1000.
+        """
+        
+        tck = si.splrep(self.wav, self.inten)
+        wav = np.linspace(self.wav[0], self.wav[-1], num = 1000)
+        inten = si.splev(wav, tck)
+        return wav[inten == min(inten)][0]
 
     def copy(self):
         """
