@@ -340,7 +340,7 @@ def _estimate_line_wavelength(region):
     inten = si.splev(wav, tck, der = 0)
     return wav[inten == min(inten)][0]
 
-def plot_abund(region_results, with_H_as_12 = True):
+def plot_abund(region_results, with_H_as_12 = False, figure_axes = None):
     """
     Plots the best iron abundances against characteristic wavelengths of
     the regions. The argument is:
@@ -350,20 +350,34 @@ def plot_abund(region_results, with_H_as_12 = True):
     The optional argument is
         
         with_H_as_12 : Sets which abundance convention should be used.
-                       Default is True.
+                       Default is False.
+        
+        figure_axes  : Sets the axes object. If this is None, then the result of
+                       matplotlib.pyplot.gca() will be used. And if this is not None
+                       then it will be used to plot the abundance. Also note that
+                       if this is not None, the plot will not be shown implicitly.
+                       Thereby this can be used to have several plots in the same figure.
+                       Default is None.
     """
     
-    x = np.array([_estimate_line_wavelength(r.region) for r in region_results])
-    y = np.array([r.best_abund for r in region_results])
+    if figure_axes == None:
+        ax = _plt.gca()
+    else:
+        ax = figure_axes
+    
+    wav = np.array([_estimate_line_wavelength(r.region) for r in region_results])
+    abund = np.array([r.best_abund for r in region_results])
     if with_H_as_12:
         y += 12.0
     
-    _plt.plot(x, y, ".")
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
-    _plt.ylabel("Fe abundance", fontsize = plot_font_size)
-    _plt.show()
+    ax.plot(abund, wav, ".")
+    ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+    ax.set_ylabel("Fe abundance", fontsize = plot_font_size)
+    
+    if figure_axes == None:
+        _plt.show()
 
-def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
+def abund_histogram(region_results, bins = 5, with_H_as_12 = False, figure_axes = None):
     """
     Plots a histogram of the abundances, using the given amount of bins.
     The required argument is
@@ -377,14 +391,78 @@ def abund_histogram(region_results, bins = 5, with_H_as_12 = True):
                        Default is 5.
         
         with_H_as_12 : Sets which abundance convention should be used.
-                       Default is True.
+                       Default is False.
+        
+        figure_axes  : Sets the axes object. If this is None, then the result of
+                       matplotlib.pyplot.gca() will be used. And if this is not None
+                       then it will be used to plot the abundance. Also note that
+                       if this is not None, the plot will not be shown implicitly.
+                       Thereby this can be used to have several plots in the same figure.
+                       Default is None.
     """
+    
+    if figure_axes == None:
+        ax = _plt.gca()
+    else:
+        ax = figure_axes
     
     abundances = np.array([r.best_abund for r in region_results])
     if with_H_as_12:
         abundances += 12.0
-    _plt.hist(abundances, bins = bins)
-    _plt.xlabel("Fe abundance", fontsize = plot_font_size)
+    ax.hist(abundances, bins = bins)
+    ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
+
+def dual_abund_histogram(result_chi, result_ew, bins = 5, with_H_as_12 = False, xticks = None, yticks = None):
+    """
+    Plots two histograms of the abundances, using the given amount of bins. The first
+    histogram is for the abundances aquired using chi squared fitting, while the second
+    is for the abundances aquired by comparing equivalent widths. The required arguments
+    are
+    
+        result_chi : A list of region results from a chi squred fit. Their best abundances will
+                     be used to plot the first histogram.
+        
+        result_ew  : A list of region results from aquired by comparing equivalent widths. Their
+                     best abundances will be used to plot the second histogram.
+    
+    The optional arguments are
+    
+        bins         : The amount of bins of the histograms.
+                       Default is 5.
+        
+        with_H_as_12 : Sets which abundance convention should be used.
+                       Default is False.
+        
+        xticks       : Sets the xticks. If this is None, nothing is done.
+                       Default is None.
+        
+        yticks       : Sets the yticks. If this is None, nothing is done.
+                       Default is None.
+    """
+    
+    fig, axes = _plt.subplots(nrows = 1, ncols = 2)
+    results = [result_chi, result_ew]
+    titles = ["Result from $\\chi^2$", "Result from EW"]
+
+    # Plot the histograms
+    for ax, r, t in zip(axes, results, titles):
+        ax.set_title(t, fontsize = plot_font_size)
+        if xticks != None:
+            ax.set_xticks(xticks)
+        if yticks != None:
+            ax.set_yticks(yticks)
+        abund_histogram(r, bins = bins, with_H_as_12 = with_H_as_12, figure_axes = ax)
+    
+#    # Plot the histogram for the equivalent width results
+#    axes[1].set_title("Result from EW", fontsize = plot_font_size)
+#    if xticks != None:
+#        axes[1].set_xticks(xticks)
+#    abund_histogram(result_ew, bins = bins, with_H_as_12 = with_H_as_12, figure_axes = axes[1])
+
+    # Show the histograms   
+    fig.tight_layout()
     _plt.show()
 
 def plot_scaled(region):
@@ -477,12 +555,12 @@ def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
         _plt.ylabel(ylabel, fontsize = plot_font_size)
     _plt.show()
 
-def plot_mosaic(objects, rows, columns, plot_func):
+def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
     """
-    Plots the given list of objects in a mosaic with the given amount of rows and columns, using the given plotting
-    function. The arguments are
+    Plots the given list of objects in a grid with the given amount of rows and columns, using the given plotting
+    function. The required arguments are
     
-        regions   : An iterable of objects of some type.
+        objects   : An list of objects of some type.
         
         rows      : The number of rows.
         
@@ -490,22 +568,33 @@ def plot_mosaic(objects, rows, columns, plot_func):
         
         plot_func : The function used to plot an object. It takes two required arguments. The first is the axis object
                     and the second is the object to be plotted.
+    
+    The optional arguments are
+        
+        xlabel   : The global label for the y axis. If set to None, no such label is shown.
+                   Default is None.
+        
+        ylabel   : The global label for the y axis. If set to None, no such label is shown.
+                   Default is None.
     """
     
     # Make sure there are enough "cells"
     if rows*columns < len(objects):
-        raise Exception("Each object must have a cell. There where only " + str(rows*columns) + " cells while there was " + str(len(objects)) + " objects.")
+#        raise Exception("Each object must have a cell. There where only " + str(rows*columns) + " cells while there was " + str(len(objects)) + " objects.")
+        print("WARNING: All objects does not fit in the grid, so some will be ignored.")
     
-    # Plot the mosaic of regions
+    # Create the figure
     fig = _plt.figure()
+    
+    # Create the main axis
     main_ax = fig.add_subplot(1,1,1)
+
+    # Create the grid
     for i, obj in enumerate(objects):
         ax = fig.add_subplot(rows, columns, i + 1)
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_ylim([0,1.02])
         plot_func(ax, obj)
-#        ax.plot(r.wav, r.inten)
 
     # Hide the "main subplot", except for the labels on the x and y axes
     invisible = matplotlib.colors.colorConverter.to_rgba("#FFFFFF", alpha = 0.0)
@@ -515,9 +604,85 @@ def plot_mosaic(objects, rows, columns, plot_func):
     main_ax.spines["left"].set_color("none")
     main_ax.spines["right"].set_color("none")
     main_ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
-    main_ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
-    main_ax.set_ylabel(u"Normalized intensity", fontsize = plot_font_size)
     
+    # Set the x and y labels
+    if xlabel != None:
+        main_ax.set_xlabel(xlabel, fontsize = plot_font_size)
+    if ylabel != None:
+        main_ax.set_ylabel(ylabel, fontsize = plot_font_size)
+    
+    # Show the plot
+    fig.tight_layout()
+    _plt.show()
+
+def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
+    """
+    Plots the given list of objects in a mosaic with the given amount of rows and columns, using the given plotting
+    function. The required arguments are
+    
+        objects   : An iterable of objects of some type.
+        
+        rows      : The number of rows.
+        
+        columns   : The number of columns.
+        
+        plot_func : The function used to plot an object. It takes at least one required argument, which is the
+                    individual elements in "objects", as well at an optional argument "figure_axes".
+    
+    The optional arguments are
+    
+        titles : A list of titles for each cell. If set to None, no titles will be set.
+                 Default is None.
+        
+        sharex : Sets if the x axis should be shared for cells that overlap vertically.
+                 Default is False.
+        
+        sharey : Sets if the x axis should be shared for cells that overlap horizontically.
+                 Default is False.
+        
+        xticks : Sets the xticks. If this is None, nothing is done.
+                 Default is None.
+        
+        yticks : Sets the yticks. If this is None, nothing is done.
+                 Default is None.
+        
+        xlim   : Sets the limits of the x axis. This should be a 2 element tuple, where the
+                 first element is the minimum and the second element is the maximum. If this
+                 is None, no limit is used.
+                 Default is None.
+        
+        ylim   : Sets the limits of the y axis. This should be a 2 element tuple, where the
+                 first element is the minimum and the second element is the maximum. If this
+                 is None, no limit is used.
+                 Default is None.
+    
+    Any other arguments are passed on to "plot_func" when each cell is plotted. This includes keyword arguments.
+    """
+
+    # Get the keyword relevant arguments
+    titles = kwargs.pop("titles", None)
+    sharex = kwargs.pop("sharex", False)
+    sharey = kwargs.pop("sharey", False)
+    xticks = kwargs.pop("xticks", None)
+    yticks = kwargs.pop("yticks", None)
+    ylim = kwargs.pop("ylim", None)
+    xlim = kwargs.pop("xlim", None)
+    
+    # Plot the objects
+    fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey)
+    for i, (obj, ax) in enumerate(zip(objects, axes)):
+        if titles != None:
+            ax.set_title(titles[i], fontsize = plot_font_size)
+        if xticks != None:
+            ax.set_xticks(xticks)
+        if yticks != None:
+            ax.set_yticks(yticks)
+        if xlim != None:
+            ax.set_xlim(xlim)
+        if ylim != None:
+            ax.set_ylim(ylim)
+        plot_func(obj, *args, figure_axes = ax, **kwargs)
+
     # Show the plot
     fig.tight_layout()
     _plt.show()
@@ -533,7 +698,12 @@ def plot_region_mosaic(regions, rows, columns):
         columns : The number of columns.
     """
     
-    plot_mosaic(regions, rows, columns, lambda ax, r: ax.plot(r.wav, r.inten))
+    # Function used to plot a single cell
+    def plot_cell(ax, r):
+        ax.set_ylim([0,1.02])
+        ax.plot(r.wav, r.inten, color = "blue")
+    
+    plot_grid(regions, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity")
 
 def plot_result_mosaic(region_results, rows, columns):
     """
@@ -547,9 +717,10 @@ def plot_result_mosaic(region_results, rows, columns):
     """
     
     # Function used to plot a single cell
-    def plot_result(ax, reg_result):
+    def plot_cell(ax, reg_result):
         reg = reg_result.region
+        ax.set_ylim([0,1.02])
         ax.plot(reg_result.wav, reg_result.best_inten, color = "red")
         ax.plot(reg.wav, reg.inten, color = "blue")
 
-    plot_mosaic(region_results, rows, columns, plot_result)
+    plot_grid(region_results, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity")

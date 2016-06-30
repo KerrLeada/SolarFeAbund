@@ -178,6 +178,16 @@ def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True
 def plot_dwav(region_nr):
     plotting.plot_delta(regions[region_nr].wav, xlabel = "$i$", ylabel = "$\\lambda_i - \\lambda_{i - 1}$")
 
+def plot_mosaic2(rows, columns, plot_func, *args, **kwargs):
+    """
+    Same as plotting.plot_mosaic except that it automatically passes in a list with the result objects (first
+    the result for chi squared, then the result for equivalent widths). This is why it is called plot_mosaic2.
+    The "2" comes from that it passes two objects to plotting.plot_mosaic.
+    """
+    
+    results = [result_chi.region_result, result_ew.region_result]
+    plotting.plot_mosaic(results, rows, columns, plot_func, *args, **kwargs)
+
 def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     """
     Counts the number of data points in wav between lambda0 and lambda_end. If wav is not given, the data from the
