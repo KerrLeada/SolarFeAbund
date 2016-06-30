@@ -31,7 +31,7 @@ _plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
 # Set the font size of the plots
 plot_font_size = 11
 
-def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_observed = True, obs_pad = 0.0):
+def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_abunds = True, show_labels = True, obs_pad = 0.0, abund_filter = None, figure_axes = None):
     """
     Plots the given region result.
 
@@ -43,7 +43,7 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
         offset        : Determines the offset of the synthetic region. Specifically, it shifts the synthetic data.
                         Default is 0.
 
-        shifts        : If not set to None, this plots a separate set of the synthetic data shifted by a given amount. If this is
+        shift         : If not set to None, this plots a separate set of the synthetic data shifted by a given amount. If this is
                         a number, the synthetic data for every abundance is shifted by the same amount. If it is an iterable, that
                         iterable must have the same length as the amount of abundances in region_result. In that case each individual
                         abundance will be shifted with the corresponding amount in shifts.
@@ -57,62 +57,102 @@ def plot_region(region_result, offset = 0.0, shifts = None, alpha = 0.75, alpha_
 
         alpha_shifted : The alpha of the shifted synthetic data. This only matters if shifts is not None.
                         Default is 0.25.
-                         
-        show_observed : Determines if the observed data should be shown in the plot.
+        
+        show_abunds   : Determines if the synthetic data for other abundances then the best abundance should be shown. If set to True,
+                        the abundance filter can be used to select specific abundances to show or not. The abundance filter is given
+                        through abund_filter.
+                        Default is True.
+        
+        show_labels   : Determines if the labels for the axes should be shown or not.
                         Default is True.
                         
         obs_pad       : The padding of the observed data. Specifically, it can be used to show observed data from outside of the
                         region. A positive value expands the observed region shown while a negative value decreases it.
                         Default is 0.
+        
+        abund_filter  : A filter that determines which abundances should be shown. It can be None, a function of anything that a numpy
+                        array can be indexed or sliced with. If it is None, nothing is filtered out. If it is a function, it is expected
+                        to take 3 arguments. The first is the abundance index, the second is the abundance and the third is the synthetic
+                        intensities for that abundance.
+                        Default is None.
+        
+        figure_axes   : Sets the axes object. If this is None, then the result of
+                        matplotlib.pyplot.gca() will be used. And if this is not None
+                        then it will be used to plot the abundance. Also note that
+                        if this is not None, the plot will not be shown implicitly.
+                        Thereby this can be used to have several plots in the same figure.
+                        Default is None.
     """
     
-    # Make sure everything is shifted by the correct amount, if shifted data should be shown
-    if shifts != None:
-        shifts = shifts*np.ones(len(region_result.abund), dtype = np.float64) if np.isscalar(shifts) else list(shifts)
+    # Get the axes object
+    if figure_axes == None:
+        ax = _plt.gca()
+    else:
+        ax = figure_axes
     
-#    # Set the title to display the region number, the mode and if the spacing between the datapoints in the synth region was fitted
-#    _plt.title("Interval: " + str((region_result.region.lambda0, round(region_result.region.lambda_end, 4))) +
-#              "  delta: " + str(region_result.region.dlambda) +
-#              "  steps: " + str(region_result.region.nlambda) +
-#              "  scale: " + str(region_result.region.scale_factor))
+    # Make sure the padding for the observable spectrum is a 2 element tuple contining
+    # the padding on both the left (first element) and right (secon element) side of the
+    # region start and end points.
+    if np.isscalar(obs_pad):
+        obs_pad = (obs_pad, obs_pad)
+    
+    # Get the wavelengths
+    wav = region_result.wav
+    
+    # Make sure entire y scale is shown
+#    ax.set_ylim([0,1])
 
     # Plot the synthetic spectrum
-    for a in range(region_result.inten.shape[0]):
-        # Plot the unshifted spectrum
-        # Checking this way to avoid future issues with numpy, which will make an elementwise check if we checked this as: shifts != None
-        # Cannot check for just truthyness since numpy doesn't consider arrays to be "truthy" or "falsy".
-        if None != shifts:
-            _plt.plot(region_result.wav + shifts[a], region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha_shifted, linestyle = "--")
-        
-        # Plot the shifted spectrum
-        _plt.plot(region_result.wav - offset, region_result.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha if a != region_result.best_index else alpha_best)
+    if show_abunds:
+        # Get the intensities for all abundances
+        inten = region_result.inten
     
-    # Show the observed spectrum
-    if show_observed:
-        # Get the observed spectrum contained in the region
-        if obs_pad == 0.0:
-            rwav = region_result.region.wav
-            rinten = region_result.region.inten
-        else:
-            # If the pad is a scalar, apply it to both ends, otherwise assume its a tuple with two elements, where the
-            # first is the left pad and the second the right pad.
-            if np.isscalar(obs_pad):
-                lambda0 = region_result.region.lambda0 - obs_pad
-                lambda_end = region_result.region.lambda_end + obs_pad
+        # Filter out abundances
+        if None != abund_filter:
+            if hasattr(abund_filter, "__call__"):
+                inten = np.array([i for ai, (a, i) in enumerate(zip(region_result.abund, inten)) if abund_filter(ai, a, i)])
             else:
-                lambda0 = region_result.region.lambda0 - obs_pad[0]
-                lambda_end = region_result.region.lambda_end + obs_pad[1]
-            
-            # Get the wavelengths and intensities
-            rwav, rinten, cont = at.getatlas(lambda0, lambda_end, cgs = True)
-            rinten /= region_result.region.inten_scale_factor
+                inten = inten[abund_filter]
         
-        # Plot the spectrum, followed by the synth lines
-        _plt.plot(rwav, rinten, color = "blue")
+        for a in range(inten.shape[0]):
+            # Skip the best abundance
+            if a == region_result.best_index:
+                continue
+            
+            # Plot the unshifted spectrum
+            # Checking this way to avoid future issues with numpy, which will make an elementwise check if we checked this as: shifts != None
+            # Cannot check for just truthyness since numpy doesn't consider arrays to be "truthy" or "falsy".
+            if None != shift:
+                ax.plot(wav + shift, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha_shifted, linestyle = "--")
+            
+            # Plot the shifted spectrum
+            ax.plot(wav - offset, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha)
     
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
-    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
-    _plt.show()
+    # Plot the best abundance
+    if None != shift:
+        ax.plot(wav + shift, region_result.best_inten, color = "red", alpha = alpha_shifted, linestyle = "--")
+    ax.plot(wav - offset, region_result.best_inten, color = "red", alpha = alpha_best)
+
+    # Get the observed spectrum contained in the region
+    if obs_pad == 0.0:
+        rwav = region_result.region.wav
+        rinten = region_result.region.inten
+    else:
+        lambda0 = region_result.region.lambda0 - obs_pad[0]
+        lambda_end = region_result.region.lambda_end + obs_pad[1]
+        
+        # Get the wavelengths and intensities
+        rwav, rinten, cont = _at.getatlas(lambda0, lambda_end, cgs = True)
+        rinten /= region_result.region.inten_scale_factor
+    
+    # Plot the observed spectrum, followed by the synth lines
+    ax.plot(rwav, rinten, color = "blue")
+    
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
 
 def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
     """

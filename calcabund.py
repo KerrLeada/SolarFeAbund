@@ -153,12 +153,12 @@ def print_best():
 if _MODE_PRINT_BEST:
     print_best()
 
-def plot_region(region_nr, offset = 0.0, alpha = 0.75, show_observed = True, show_unshifted = False, obs_pad = 0.0):
+def plot_region(region_nr, offset = 0.0, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_unshifted = False, show_abunds = True, obs_pad = 0.0, abund_filter = None):
     if show_unshifted:
-        shifts = result_chi.region_result[region_nr].best_shift
+        shift = result_chi.region_result[region_nr].best_shift
     else:
-        shifts = None
-    plotting.plot_region(result_chi.region_result[region_nr], offset = offset, shifts = shifts, alpha = alpha, show_observed = show_observed, obs_pad = obs_pad)
+        shift = None
+    plotting.plot_region(result_chi.region_result[region_nr], offset = offset, shift = shift, alpha = alpha, alpha_best = alpha_best, alpha_shifted = alpha_shifted, show_abunds = show_abunds, obs_pad = obs_pad, abund_filter = abund_filter)
 
 #def plot_spec(show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
 #    # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
