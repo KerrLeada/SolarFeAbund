@@ -31,6 +31,113 @@ _plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
 # Set the font size of the plots
 plot_font_size = 11
 
+def _get_figure_axes(figure_axes):
+    """
+    Gets the axis object used to plot stuff. Specifically, if figure_axes is None the current
+    axis object will be returned. Otherwise, figure_axes will be returned.
+    """
+    
+    if figure_axes == None:
+        figure_axes = _plt.gca()
+    return figure_axes
+
+def _filter_abund(abund_filter, abund, inten):
+    """
+    Filters out the intensities using the given abundance filter abund_filter, the abundencies abund and
+    the intensities inten (which is an array of 2 dimensions, for which the rows represent abundencies and
+    the columns the corresponding values for the intensity). A new numpy array of the same format as inten
+    is returned.
+    """
+    
+    # Filter out abundances
+    if None != abund_filter:
+        if hasattr(abund_filter, "__call__"):
+            inten = np.array([i for ai, (a, i) in enumerate(zip(abund, inten)) if abund_filter(ai, a, i)])
+        else:
+            inten = inten[abund_filter]
+    return inten
+
+def plot_compared(region_result, show_labels = True, abund_filter = None, figure_axes = None):
+    """
+    """
+    
+    # Get the axes object
+    ax = _get_figure_axes(figure_axes)
+    
+    wav = region_result.region.wav
+    intensities = _filter_abund(abund_filter, region_result.abund, region_result.inten)
+    
+    for a, inten in enumerate(intensities):
+        if not np.all(inten == region_result.best_inten):
+            ax.plot(wav, inten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.5)
+    ax.plot(wav, region_result.best_inten, color = "red")
+    ax.plot(wav, region_result.region.inten, color = "blue")
+
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
+        
+
+def plot_abund_compared(region_result, abund = None, show_labels = True, show_legend = True, legend_pos = 4, figure_axes = None):
+    """
+    """
+    
+    # Get the axes object
+    ax = _get_figure_axes(figure_axes)
+    
+    if abund == None:
+        abund = region_result.best_index
+    
+    obs_wav = region_result.region.wav
+    synth_wav = region_result.wav
+    inten = region_result.inten[abund]
+    
+    lbl_comp = ax.plot(obs_wav, inten, color = "red", label = "Comp")
+    lbl_real = ax.plot(synth_wav, inten, color = "red", linestyle = "--", label = "Real")
+    lbl_obs = ax.plot(obs_wav, region_result.region.inten, color = "blue", label = "Obs")
+    
+    if show_legend:
+        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = plot_font_size)
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
+
+def plot_abund_compared2(region_result, linear_interp = False, abund = None, show_labels = True, show_legend = True, legend_pos = 4, figure_axes = None):
+    """
+    """
+    
+    # Get the axes object
+    ax = _get_figure_axes(figure_axes)
+    
+    if abund == None:
+        abund = region_result.best_index
+    
+    obs_wav = region_result.region.wav
+    synth_wav = region_result.wav
+    inten_real = region_result.inten[abund]
+    
+    if linear_interp:
+        inten_interp = np.interp(obs_wav, synth_wav, inten_real)
+    else:
+        tck = si.splrep(synth_wav, inten_real)
+        inten_interp = si.splev(obs_wav, tck, der = 0)
+    
+    lbl_comp = ax.plot(obs_wav, inten_interp, color = "red", label = "Comp")
+    lbl_real = ax.plot(synth_wav, inten_real, color = "red", linestyle = "--", label = "Real")
+    lbl_obs = ax.plot(obs_wav, region_result.region.inten, color = "blue", label = "Obs")
+    
+    if show_legend:
+        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = plot_font_size)
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
+
 def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_abunds = True, show_labels = True, obs_pad = 0.0, abund_filter = None, figure_axes = None):
     """
     Plots the given region result.
@@ -85,10 +192,7 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
     """
     
     # Get the axes object
-    if figure_axes == None:
-        ax = _plt.gca()
-    else:
-        ax = figure_axes
+    ax = _get_figure_axes(figure_axes)
     
     # Make sure the padding for the observable spectrum is a 2 element tuple contining
     # the padding on both the left (first element) and right (secon element) side of the
@@ -108,15 +212,16 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
         inten = region_result.inten
     
         # Filter out abundances
-        if None != abund_filter:
-            if hasattr(abund_filter, "__call__"):
-                inten = np.array([i for ai, (a, i) in enumerate(zip(region_result.abund, inten)) if abund_filter(ai, a, i)])
-            else:
-                inten = inten[abund_filter]
+        inten = _filter_abund(abund_filter, region_result.abund, inten)
+#        if None != abund_filter:
+#            if hasattr(abund_filter, "__call__"):
+#                inten = np.array([i for ai, (a, i) in enumerate(zip(region_result.abund, inten)) if abund_filter(ai, a, i)])
+#            else:
+#                inten = inten[abund_filter]
         
         for a in range(inten.shape[0]):
             # Skip the best abundance
-            if a == region_result.best_index:
+            if np.all(inten[a] == region_result.best_inten):
                 continue
             
             # Plot the unshifted spectrum

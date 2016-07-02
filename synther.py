@@ -713,6 +713,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
         # Get the observed wavelengths and intensities in the current region
         robs_wav = r.wav
         robs_inten = r.inten
+        noise = r.noise
 #        robs_inten = r.inten*r.inten_scale_factor/r.cont
 
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
@@ -764,12 +765,12 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
                 # To calculate the chi squared for each shift, we use interpolation to shift the synthetic
                 # data a little bit.
                 interp_syn = np.interp(rwav, rwav - shift[ii], rsynth_inten)
-                
+
                 # Calculate and store the chi squared
                 # Note that this assumes that the wavelengths of the observed data and the wavelengths of
                 # the synthetic (and thereby interpolated) data are the same. This is not really true, but
                 # the error is small enough that this should not matter too much.
-                rchisq[a,ii] = ((robs_inten - interp_syn)**2).sum()
+                rchisq[a,ii] = (((robs_inten - interp_syn)**2) / noise).sum()
             
             # Get and store the best shift
             best_shift = shift[np.argmin(rchisq[a,:])]

@@ -33,15 +33,20 @@ class NumericColumn(object):
 def numbers(column_elements, fmt = None):
     return NumericColumn(column_elements, fmt = fmt)
 
-def gen_table(first_column, *columns):
-    table = [first_column]
-    table.extend(columns)
-    row_count = len(first_column)
-    col_count = len(table)
+def gen_table(columns, sort_after = 0):
+    # Generate the table
+    if sort_after == None:
+        table = zip(*columns)
+    else:
+        table = sorted(zip(*columns), key = lambda row: row[sort_after])
+    
+    # Generate the latex table
+    row_count = len(table)
+    col_count = len(columns)
     table_text = ""
     for r in range(row_count):
-        table_text += str(table[0][r])
+        table_text += str(table[r][0])
         for c in range(1, col_count):
-            table_text += " & " + str(table[c][r])
+            table_text += " & " + str(table[r][c])
         table_text += " \\\\\n"
     return table_text

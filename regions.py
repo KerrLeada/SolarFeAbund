@@ -35,6 +35,8 @@ class Region(object):
         
         cont               : The continuum level intensities at the wavelengths of wav.
         
+        noise              : The noise of the intensity data. This may be a number or an array.
+        
         lambda0            : The starting wavelength of the region.
         
         lambda_end         : The ending wavelength of the region.
@@ -50,7 +52,7 @@ class Region(object):
         length             : The amount of observed wavelengths.
     """
 
-    def __init__(self, lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = 1.0):
+    def __init__(self, lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = 1.0, noise = 1.0):
         """
         Constructor for Region objects. It is not recommeneded to use this constructor directly. The required arguments are
 
@@ -70,7 +72,15 @@ class Region(object):
         
             scale factor : The scale factor for the synthesizing spectra.
                            Default is 1.
+            
+            noise        : The noise of the intensity data. This may be a number or an array. If the latter it must be of the
+                           same length as wav, inten and cont.
+                           Default is 1.
         """
+        
+        # Fail fast
+        if len(wav) != len(inten) and len(wav) != len(cont):
+            raise Exception("The arguments wav, inten and cont must be arrays of equal length")
         
         self.wav = wav
         self.inten_scale_factor = inten.max()
@@ -96,6 +106,15 @@ class Region(object):
             scale_factor = scale_factor(wav, self.inten)
         elif not np.isscalar(scale_factor):
             raise Exception("scale_factor must be a scalar or a callable")
+        
+        # Make sure noise is correct
+        if np.isscalar(noise):
+            self.noise = noise
+        elif len(noise) == len(wav):
+            self.noise = np.array(noise)
+        else:
+            raise Exception("The argument 'noise' was an instance of " + type(noise).__name__ + " with length " + str(len(noise)) + ", but was expected to have length " + str(len(noise)) +
+                            " (the same was the arguments 'wav', 'inten' and 'cont'). Make sure it has the correct length, or replace it with a number.")
 
         self.dlambda = dlambda
         self.nlambda = nlambda
@@ -189,6 +208,7 @@ class Region(object):
         lambda_end = reg.lambda_end - right
         wav, inten = get_within(lambda0, lambda_end, reg.wav, reg.inten)
         _, cont = get_within(lambda0, lambda_end, reg.wav, reg.cont)
+        _, noise = get_within(lambda0, lambda_end, reg.wav, reg.noise)
         inten_max = inten.max()
         
         if nlambda == None:
@@ -214,6 +234,7 @@ class Region(object):
         reg.wav = wav
         reg.inten = inten
         reg.cont = cont
+        reg.noise = noise
         reg.nlambda = nlambda
         reg.dlambda = dlambda
         reg.length = wav.size
@@ -249,7 +270,7 @@ def calc_dwav(region):
     """
     return region.wav[1:] - region.wav[:-1]
 
-def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, cgs = True):
+def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, noise = 1, cgs = True):
     """
     Creates a new region in the form of a Region object between lambda0 and lambda_end, using the given atlas object.
     The arguments are
@@ -270,6 +291,10 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         
         nlambda      : The amount of steps of the region. This can be None, a number or a function.
                        Defalt is None.
+        
+        noise        : The noise of the intensity data. This may be a number or an array. If the latter it must be of the
+                       same length as wav, inten and cont.
+                       Default is 1.
         
         cgs          : Determines is cgs units should be used when synthezising spectral lines.
                        Default is True.
@@ -302,9 +327,9 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         nlambda = wav.size
     
     # Return the new region
-    return Region(lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = scale_factor)
+    return Region(lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = scale_factor, noise = noise)
 
-def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True):
+def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, noise = 1, cgs = True):
     """
     Creates a region in Region form. The required arguments are
 
@@ -319,6 +344,13 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True)
     The optional arguments are
     
         scale_factor : The scale factor (used for normalization)
+        
+        noise        : The noise of the intensity data. This may be a number or an array. If the latter it must be of the
+                       same length as wav, inten and cont.
+                       Default is 1.
+        
+        cgs          : Determines is cgs units should be used when synthezising spectral lines.
+                       Default is True.
 
     The end point can be found with: lambda_0 + dlambda*nlambda
     The return value is a tuple of the form:
@@ -328,7 +360,7 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, cgs = True)
     obs_wav, obs_inten, obs_cont = atlas.getatlas(lambda0, lambda0 + dlambda*nlambda, cgs = cgs)
     if len(obs_wav) != nlambda:
         raise Exception("The observed data had a length " + str(len(obs_wav)) + " while nlambda was " + str(nlambda) + ". They must match.")
-    return Region(lambda0, obs_wav, obs_inten, obs_cont, dlambda, nlambda, scale_factor = scale_factor)
+    return Region(lambda0, obs_wav, obs_inten, obs_cont, dlambda, nlambda, scale_factor = scale_factor, noise = noise)
 
 def new_region_from(atlas, obj):
     """
