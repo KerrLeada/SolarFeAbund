@@ -9,6 +9,7 @@ from __future__ import division
 
 import numpy as np
 import matplotlib.pyplot as _plt
+import matplotlib.ticker as ticker
 import matplotlib.colors
 import abundutils as _au
 import satlas as _sa
@@ -31,6 +32,9 @@ _plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
 # Set the font size of the plots
 plot_font_size = 11
 
+# The figure size (in inches) of some functions
+plot_figure_size = (7, 7)
+
 def _get_figure_axes(figure_axes):
     """
     Gets the axis object used to plot stuff. Specifically, if figure_axes is None the current
@@ -52,8 +56,11 @@ def _filter_abund(abund_filter, abund, inten):
     # Filter out abundances
     if None != abund_filter:
         if hasattr(abund_filter, "__call__"):
-            inten = np.array([i for ai, (a, i) in enumerate(zip(abund, inten)) if abund_filter(ai, a, i)])
+            filtered = np.array([[a, i] for ai, (a, i) in enumerate(zip(abund, inten)) if abund_filter(ai, a, i)])
+            abund = filtered[:,0]
+            inten = filtered[:,1]
         else:
+            abund = abund[abund_filter]
             inten = inten[abund_filter]
     return inten
 
@@ -138,7 +145,48 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     if figure_axes == None:
         _plt.show()
 
-def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_abunds = True, show_labels = True, obs_pad = 0.0, abund_filter = None, figure_axes = None):
+def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, figure_axes = None, xticks_adjust = None):
+    """
+    """
+    
+    # Get the axes object
+    ax = _get_figure_axes(figure_axes)
+    
+    # Get the wavelengths
+    wav = region_result.wav
+    
+    # Make sure entire y scale is shown
+    ax.set_xlim([wav[0], wav[-1]])
+    ax.set_ylim([0, 1.1])
+    
+    # Plot the unshifted, shifted and observed spectrums
+    lbl_best = ax.plot(wav, region_result.best_inten, color = "red", label = "Not shifted")
+    lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Shifted")
+    lbl_obs = ax.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "FTS atlas")
+
+    # Set the formatter
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+    
+    # Adjust the x ticks
+    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
+        xticks = ax.get_xticks()
+        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
+    elif hasattr(xticks_adjust, "__call__"):
+        xticks = ax.get_xticks()
+        ax.set_xticks(xticks_adjust(xticks))
+    elif xticks_adjust != None:
+        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
+    
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if show_legend:
+        ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = 8)
+    if figure_axes == None:
+        _plt.tight_layout()
+        _plt.show()
+
+def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, figure_axes = None, xticks_adjust = None):
     """
     Plots the given region result.
 
@@ -149,29 +197,36 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
 
         offset        : Determines the offset of the synthetic region. Specifically, it shifts the synthetic data.
                         Default is 0.
-
-        shift         : If not set to None, this plots a separate set of the synthetic data shifted by a given amount. If this is
-                        a number, the synthetic data for every abundance is shifted by the same amount. If it is an iterable, that
-                        iterable must have the same length as the amount of abundances in region_result. In that case each individual
-                        abundance will be shifted with the corresponding amount in shifts.
-                        Default is None.
-                         
-        alpha         : The alpha of the synthetic data.
-                        Default is 0.7.
-                         
-        alpha_best    : The alpha of the synthetic data corresponding to the best abundance.
-                        Default is 0.9.
-
-        alpha_shifted : The alpha of the shifted synthetic data. This only matters if shifts is not None.
-                        Default is 0.25.
         
         show_abunds   : Determines if the synthetic data for other abundances then the best abundance should be shown. If set to True,
                         the abundance filter can be used to select specific abundances to show or not. The abundance filter is given
                         through abund_filter.
-                        Default is True.
+                        Default is False.
         
         show_labels   : Determines if the labels for the axes should be shown or not.
                         Default is True.
+        
+        show_legend   : Determines if the legend should be shown.
+                        Default is True.
+        
+        legend_pos    : Determines the position of the legend, if it is shown. Valid values are
+                        
+                            0  : best
+                            1  : upper right
+                            2  : upper left
+                            3  : lower left
+                            4  : lower right
+                            5  : right
+                            6  : center left
+                            7  : center right
+                            8  : lower center
+                            9  : upper center
+                            10 : center
+                        
+                        Alternatively a 2 element tuple can be used to specify the x and y position (first element
+                        is x, second element is y) of the lower left corner of the legend. This position has to be
+                        in the coordinates of the plot, so x is wavelength and y is the normalized intensity.
+                        Default is 4.
                         
         obs_pad       : The padding of the observed data. Specifically, it can be used to show observed data from outside of the
                         region. A positive value expands the observed region shown while a negative value decreases it.
@@ -189,6 +244,11 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
                         if this is not None, the plot will not be shown implicitly.
                         Thereby this can be used to have several plots in the same figure.
                         Default is None.
+        
+        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
     """
     
     # Get the axes object
@@ -204,42 +264,31 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
     wav = region_result.wav
     
     # Make sure entire y scale is shown
-#    ax.set_ylim([0,1])
+    ax.set_xlim([wav[0], wav[-1]])
+    ax.set_ylim([0, 1.1])
+    
+    # List of the legend labels
+    legend_labels = []
 
     # Plot the synthetic spectrum
     if show_abunds:
-        # Get the intensities for all abundances
-        inten = region_result.inten
     
-        # Filter out abundances
-        inten = _filter_abund(abund_filter, region_result.abund, inten)
-#        if None != abund_filter:
-#            if hasattr(abund_filter, "__call__"):
-#                inten = np.array([i for ai, (a, i) in enumerate(zip(region_result.abund, inten)) if abund_filter(ai, a, i)])
-#            else:
-#                inten = inten[abund_filter]
+        # Get the intensities for the filtered (or unfiltered) abundances
+        abund, inten = _filter_abund(abund_filter, region_result.abund, region_result.inten)
         
+        # Plot the intensities for the chosen abundances       
         for a in range(inten.shape[0]):
-            # Skip the best abundance
-            if np.all(inten[a] == region_result.best_inten):
-                continue
-            
-            # Plot the unshifted spectrum
-            # Checking this way to avoid future issues with numpy, which will make an elementwise check if we checked this as: shifts != None
-            # Cannot check for just truthyness since numpy doesn't consider arrays to be "truthy" or "falsy".
-            if None != shift:
-                ax.plot(wav + shift, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha_shifted, linestyle = "--")
-            
-            # Plot the shifted spectrum
-            ax.plot(wav - offset, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = alpha)
+            # Plot everything but the best abundance
+            if not np.all(inten[a] == region_result.best_inten):
+                lbl = ax.plot(wav - offset, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.75, label = "$\\log A_{Fe} = " + str(abund[a]) + "$")
+                legend_labels.append(lbl[0])
     
     # Plot the best abundance
-    if None != shift:
-        ax.plot(wav + shift, region_result.best_inten, color = "red", alpha = alpha_shifted, linestyle = "--")
-    ax.plot(wav - offset, region_result.best_inten, color = "red", alpha = alpha_best)
+    lbl_best = ax.plot(wav - offset, region_result.best_inten, color = "red", label = "$\\log A_{Fe} = " + str(region_result.best_abund) + "$")
+    legend_labels.append(lbl_best[0])
 
     # Get the observed spectrum contained in the region
-    if obs_pad == 0.0:
+    if obs_pad == (0.0, 0.0):
         rwav = region_result.region.wav
         rinten = region_result.region.inten
     else:
@@ -251,12 +300,29 @@ def plot_region(region_result, offset = 0.0, shift = None, alpha = 0.75, alpha_b
         rinten /= region_result.region.inten_scale_factor
     
     # Plot the observed spectrum, followed by the synth lines
-    ax.plot(rwav, rinten, color = "blue")
+    lbl_obs = ax.plot(rwav, rinten, color = "blue", label = "FTS atlas")
+    legend_labels.append(lbl_obs[0])
+    
+    # Set the formatter
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+    
+    # Adjust the x ticks
+    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
+        xticks = ax.get_xticks()
+        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
+    elif hasattr(xticks_adjust, "__call__"):
+        xticks = ax.get_xticks()
+        ax.set_xticks(xticks_adjust(xticks))
+    elif xticks_adjust != None:
+        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
     
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if show_legend:
+        ax.legend(handles = legend_labels, loc = legend_pos, fontsize = 8)
     if figure_axes == None:
+        _plt.tight_layout()
         _plt.show()
 
 def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
@@ -316,7 +382,7 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
     _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
-def plot_vs_abund(abund, values, ylabel = None):
+def plot_vs_abund(abund, values, ylabel = None, figure_axes = None):
     """
     Plots a quantity against the abundance. The required arguments are
 
@@ -327,22 +393,42 @@ def plot_vs_abund(abund, values, ylabel = None):
     
     The optional argument is
     
-        ylabel : The label of the y axis. If this argument is None, the y axis will not have a label.
-                 Default is None.
+        ylabel      : The label of the y axis. If this argument is None, the y axis will not have a label.
+                      Default is None.
+        
+        figure_axes : Sets the axes object. If this is None, then the result of
+                      matplotlib.pyplot.gca() will be used. And if this is not None
+                      then it will be used to plot the abundance. Also note that
+                      if this is not None, the plot will not be shown implicitly.
+                      Thereby this can be used to have several plots in the same figure.
+                      Default is None.
     """
-
-    _plt.plot(abund, values)
-    _plt.xlabel("Fe abundance", fontsize = plot_font_size)
+    
+    # Get the axes object
+    ax = _get_figure_axes(figure_axes)
+    
+    ax.plot(abund, values)
+    ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
     if ylabel != None:
-        _plt.ylabel(ylabel, fontsize = plot_font_size)
-    _plt.show()
+        ax.set_ylabel(ylabel, fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
 
-def plot_chisq(region_result):
+def plot_chisq(region_result, figure_axes = None):
     """
-    Plots chi squared for the given region result vs the abundance.
+    Plots chi squared for the given region result vs the abundance. The required argument is
 
         region_result : The region result from which the chi squared should be plotted. This will work
                         for an instance of ChiRegionResult, but not EWRegionResult.
+    
+    The optional argument is
+    
+        figure_axes : Sets the axes object. If this is None, then the result of
+                      matplotlib.pyplot.gca() will be used. And if this is not None
+                      then it will be used to plot the abundance. Also note that
+                      if this is not None, the plot will not be shown implicitly.
+                      Thereby this can be used to have several plots in the same figure.
+                      Default is None.
     """
         
     plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$")
@@ -453,7 +539,7 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
                         
                         Alternatively a 2 element tuple can be used to specify the x and y position (first element
                         is x, second element is y) of the lower left corner of the legend. This position has to be
-                        in the coordinates of the plot, so x is wavelength and y is normalized intensity.
+                        in the coordinates of the plot, so x is wavelength and y is the normalized intensity.
                         Default is 4.
 
     """
@@ -776,30 +862,33 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     
     The optional arguments are
     
-        titles : A list of titles for each cell. If set to None, no titles will be set.
-                 Default is None.
+         titles : A list of titles for each cell. If set to None, no titles will be set.
+                  Default is None.
         
-        sharex : Sets if the x axis should be shared for cells that overlap vertically.
-                 Default is False.
+         sharex : Sets if the x axis should be shared for cells that overlap vertically.
+                  Default is False.
         
-        sharey : Sets if the x axis should be shared for cells that overlap horizontically.
-                 Default is False.
+         sharey : Sets if the x axis should be shared for cells that overlap horizontically.
+                  Default is False.
         
-        xticks : Sets the xticks. If this is None, nothing is done.
-                 Default is None.
+         xticks : Sets the xticks. If this is None, nothing is done.
+                  Default is None.
         
-        yticks : Sets the yticks. If this is None, nothing is done.
-                 Default is None.
+         yticks : Sets the yticks. If this is None, nothing is done.
+                  Default is None.
         
-        xlim   : Sets the limits of the x axis. This should be a 2 element tuple, where the
-                 first element is the minimum and the second element is the maximum. If this
-                 is None, no limit is used.
-                 Default is None.
+         xlim   : Sets the limits of the x axis. This should be a 2 element tuple, where the
+                  first element is the minimum and the second element is the maximum. If this
+                  is None, no limit is used.
+                  Default is None.
         
-        ylim   : Sets the limits of the y axis. This should be a 2 element tuple, where the
-                 first element is the minimum and the second element is the maximum. If this
-                 is None, no limit is used.
-                 Default is None.
+         ylim   : Sets the limits of the y axis. This should be a 2 element tuple, where the
+                  first element is the minimum and the second element is the maximum. If this
+                  is None, no limit is used.
+                  Default is None.
+        
+        figsize : Sets the figure size, unless None is given.
+                  Default is None.
     
     Any other arguments are passed on to "plot_func" when each cell is plotted. This includes keyword arguments.
     """
@@ -812,9 +901,14 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     yticks = kwargs.pop("yticks", None)
     ylim = kwargs.pop("ylim", None)
     xlim = kwargs.pop("xlim", None)
+    figsize = kwargs.pop("figsize", None)
     
     # Plot the objects
-    fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey)
+    if figsize == None:
+        fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey)
+    else:
+        fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey, figsize = figsize)
+    axes = axes.reshape(rows*columns)
     for i, (obj, ax) in enumerate(zip(objects, axes)):
         if titles != None:
             ax.set_title(titles[i], fontsize = plot_font_size)

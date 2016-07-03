@@ -153,12 +153,8 @@ def print_best():
 if _MODE_PRINT_BEST:
     print_best()
 
-def plot_region(region_nr, offset = 0.0, alpha = 0.75, alpha_best = 0.9, alpha_shifted = 0.25, show_unshifted = False, show_abunds = True, obs_pad = 0.0, abund_filter = None):
-    if show_unshifted:
-        shift = result_chi.region_result[region_nr].best_shift
-    else:
-        shift = None
-    plotting.plot_region(result_chi.region_result[region_nr], offset = offset, shift = shift, alpha = alpha, alpha_best = alpha_best, alpha_shifted = alpha_shifted, show_abunds = show_abunds, obs_pad = obs_pad, abund_filter = abund_filter)
+def plot_region(region_nr, **kwargs):
+    plotting.plot_region(result_chi.region_result[region_nr], **kwargs)
 
 #def plot_spec(show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
 #    # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
@@ -177,6 +173,26 @@ def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True
 
 def plot_dwav(region_nr):
     plotting.plot_delta(regions[region_nr].wav, xlabel = "$i$", ylabel = "$\\lambda_i - \\lambda_{i - 1}$")
+
+def plot_chi_mosaic(region_nrs, rows, columns, plot_func, *args, **kwargs):
+    """
+    Same as plotting.plot_mosaic, except for the first argument 'region_nrs'. Specifically, 'region_nrs' is an
+    iterable over the indices of the region results to pass on to plotting.plot_mosaic. The region results come
+    from the result of the chi squared calculation.
+    """
+    
+    regres = [r for i, r in enumerate(result_chi.region_result) if i in region_nrs]
+    plotting.plot_mosaic(regres, rows, columns, plot_func, *args, **kwargs)
+    
+def plot_ew_mosaic(region_nrs, rows, columns, plot_func, *args, **kwargs):
+    """
+    Same as plotting.plot_mosaic, except for the first argument 'region_nrs'. Specifically, 'region_nrs' is an
+    iterable over the indices of the region results to pass on to plotting.plot_mosaic. The region results come
+    from the result of the equivalent width calculation.
+    """
+    
+    regres = [r for i, r in enumerate(result_ew.region_result) if i in region_nrs]
+    plotting.plot_mosaic(regres, rows, columns, plot_func, *args, **kwargs)
 
 def plot_mosaic2(rows, columns, plot_func, *args, **kwargs):
     """
