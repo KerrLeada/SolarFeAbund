@@ -21,8 +21,6 @@ from plotting import plot_in, plot_around
 
 # Used to quickly switch code
 _MODE = 0
-_MODE_SHOW_PLOTS = False
-_MODE_SHOW_UNSHIFTED = True
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = False
 _MODE_VERBOSE = True
@@ -69,11 +67,6 @@ def plotgauss(region_nr, vels = None):
         plt.plot(tw, gaussfor(region_nr, tw, vel = v))
     plt.show()
 
-# Create the abundances (these limits where chosen after calculating
-# for a larger interval and noticing it was too large... specifically
-# it used to be from -4.1 to -5.0).
-abunds = -np.arange(4.3, 4.8, step = 0.01)
-
 def print_shifts(show_all = True):
     """
     Prints the shifts. By default the abundance and chi squared is printed as well, however
@@ -86,37 +79,32 @@ def print_shifts(show_all = True):
     for r in result.region_result:
         print("Region:", str(r.region))
         for a, s, c2, ainten in zip(r.abund, r.shift, r.chisq, r.inten):
-            line_wav = r.wav[np.argmin(ainten)]
+            line_wav = r.estimate_minimum()
             line_wav_em = line_wav + s
             print("    Abund:", a)
             print("    Shift:", s)
             print("    Chisq:", c2)
             if show_all:
                 print("    Doppler velocity:", _calc_vel(s, line_wav_em), "km/s")
-                print("    Unshifted line max wavelength:", line_wav_em, "Angstrom")
-                print("    Shifted line max wavelength:  ", line_wav, "Angstrom")
+                print("    Unshifted line max wavelength:", line_wav_em, u"Ångström")
+                print("    Shifted line max wavelength:  ", line_wav, u"Ångström")
             print("")
         print("")
 
-# Synth the spectrum and attempt to fit it to the observed data using the chi squared method
-time_start_chi = time.time()
-try:
-    print("Calculating the best abundance using the chi squared method")
-    result_chi = synther.fit_spectrum_parallel(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
-    print("DONE: Calculating the best abundance using the chi squared method")
-finally:
-    time_end_chi = time.time()
-    time_chi = time_end_chi - time_start_chi
+# Create the abundances (these limits where chosen after calculating
+# for a larger interval and noticing it was too large... specifically
+# it used to be from -4.1 to -5.0).
+abunds = -np.arange(4.3, 4.8, step = 0.01)
 
-# Synth the spectrum and attempt to fit it to the observed data using equivalent widths
-time_start_ew = time.time()
+# Synth the spectrum and attempt to fit it to the observed data using the chi squared method
+time_start = time.time()
 try:
-    print("Calculating the best abundance using equivalent widths")
-    result_ew = synther.fit_width_parallel(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
-    print("DONE: Calculating the best abundance using equivalent widths")
+    result = synther.fit_spectrum(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
 finally:
-    time_end_ew = time.time()
-    time_ew = time_end_ew - time_start_ew
+    time_end = time.time()
+    time_tot = time_end - time_start
+result_chi = result.result_chi
+result_ew = result.result_ew
 
 def _calc_vel(delta_lambda, lambda_em):
     """
@@ -168,8 +156,8 @@ def plot_diff(region_nr):
     regres = result.region_result[region_nr]
     plotting.plot_vs_abund(regres.abund, regres.diff)
 
-def plot_bisect(region_nr, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
-    plotting.plot_bisect(result_chi.region_result[region_nr], offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, only_best_synth = only_best_synth, num = num)
+def plot_bisect(region_nr, **kwargs):
+    plotting.plot_bisect(result_chi.region_result[region_nr], **kwargs)
 
 def plot_dwav(region_nr):
     plotting.plot_delta(regions[region_nr].wav, xlabel = "$i$", ylabel = "$\\lambda_i - \\lambda_{i - 1}$")
@@ -222,10 +210,12 @@ def _conv(energy):
     return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
 
 # Show the time the calculation took
-print("Time chi squared:", time_chi, " (seconds)")
-print("Time eq width:   ", time_ew, " (seconds)")
+print("")
+print("Total time:", time_tot, "seconds")
 
 # Final reminder of where the results are stored
+print("")
+print("The variable 'result' is an instance of ResultPair and contains the results of both fits.")
 print("The variable 'result_chi' contains the result of the calculation using the chi squared method, and")
 print("the variable 'result_ew' contains the results of the calculation using equivalent widths.")
 

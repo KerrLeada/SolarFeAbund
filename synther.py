@@ -508,32 +508,63 @@ class SynthResult(object):
         self.abund = np.mean(self.best_abunds)
         self.error_abund = np.std(self.best_abunds)
     
-def _fuse_result2(result1, result2):
-    """
-    Fuses two results of a fit, assuming it was done with the chi squared method
-    """
-    
-    if not np.array_equal(result1.region_data, result2.region_data):
-        raise Exception("Region data must be the same for result1 and result2")
-    if not np.array_equal(result1.wav, result2.wav):
-        raise Exception("Wavelength data must be the same for result1 and result2")
-    
-    # Fuse the region results
-    region_result = []
-    for r1, r2 in zip(result1.region_result, result2.region_result):
-        region_result.append(r1._fuse_result(r2))
-    if len(result1.region_result) > len(result2.region_result):
-        region_result.extend(result1.region_result[len(result2.region_result):])
-    elif len(result1.region_result) < len(result2.region_result):
-        region_result.extend(result2.region_result[len(result1.region_result):])
+    def _fuse_result(self, other):
+        """
+        Fuses two results of a fit, assuming it was done with the chi squared method
+        """
+        
+        if not np.array_equal(self.region_data, other.region_data):
+            raise Exception("Region data must be the same for result1 and result2")
+        if not np.array_equal(self.wav, other.wav):
+            raise Exception("Wavelength data must be the same for result1 and result2")
+        
+        # Fuse the region results
+        region_result = []
+        for r1, r2 in zip(self.region_result, other.region_result):
+            region_result.append(r1._fuse_result(r2))
+        if len(self.region_result) > len(other.region_result):
+            region_result.extend(self.region_result[len(other.region_result):])
+        elif len(self.region_result) < len(other.region_result):
+            region_result.extend(other.region_result[len(self.region_result):])
 
-    # Append the raw data of result2 after result1 (note that since raw_synth_data are
-    # python lists + means concatenation and not elementwise addition, as would be the
-    # case if they where arrays)
-    raw_synth_data = result1.raw_synth_data + result2.raw_synth_data
+        # Append the raw data of result2 after result1 (note that since raw_synth_data are
+        # python lists + means concatenation and not elementwise addition, as would be the
+        # case if they where arrays)
+        raw_synth_data = self.raw_synth_data + other.raw_synth_data
+        
+        # Return the fused result
+        return SynthResult(region_result, self.region_data, self.wav, raw_synth_data)
+
+class ResultPair(object):
+    """
+    Represents a result pair. One result comes from using the chi squared method, the other
+    from using equivalent widths. The attributes are
     
-    # Return the fused result
-    return SynthResult(region_result, result1.region_data, result1.wav, raw_synth_data)
+        result_chi : The result from a fit, obtained using the chi squared method.
+        
+        result_ew  : The result from a fit, obtained using equivalent widths.
+    """
+    
+    def __init__(self, result_chi, result_ew):
+        """
+        Constructor for the ResultPair class, which is a class that represents a result pair from two fits.
+        One result comes from using the chi squared method, the other from using equivalent widths. The
+        required arguments are
+    
+            result_chi : The result from a fit, obtained using the chi squared method.
+        
+            result_ew  : The result from a fit, obtained using equivalent widths.
+        """
+        
+        self.result_chi = result_chi
+        self.result_ew = result_ew
+    
+    def _fuse_result(self, other):
+        """
+        Fuses two ResultPair objects together
+        """
+        
+        return ResultPair(self.result_chi._fuse_result(other.result_chi), self.result_ew._fuse_result(other.result_ew))
 
 def _fuse_result(result_list):
     """
@@ -543,7 +574,7 @@ def _fuse_result(result_list):
     # Fuse the result together
     result = result_list[0]
     for r in result_list[1:]:
-        result = _fuse_result2(result, r)
+        result = result._fuse_result(r)
     return result
 
 def _synth(s, m):
@@ -666,7 +697,7 @@ def _parallel_calc(abund_range, processes, func, args, verbose):
     # Fuse the results and return it   
     return _fuse_result(result_list)
 
-def _fit_regions(regions, wav, synth_data, abunds, verbose):
+def _fit_regions_chi(regions, wav, synth_data, abunds, verbose):
     """
     Fits the regions of the synthetic data to the corresponding observed data
     """
@@ -682,8 +713,6 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
     
     # Display some information, if in verbose mode
     if verbose:
-        print("Number of regions to test:", len(regions))
-        print("Number of abundances to test:", len(abunds))
         print("Number of shifts: ", nshift)
         print("Shift step length:", shift[1]-shift[0])
     
@@ -802,7 +831,7 @@ def _fit_regions(regions, wav, synth_data, abunds, verbose):
     # Return the region result
     return region_result
 
-def _fit_spectrum(abund_range, cfg_file, regions, model_file, verbose):
+def _fit_chi(abund_range, cfg_file, regions, model_file, verbose):
     """
     Synthazises spectral lines and attempt to fit them to the observed data using the chi squared
     method.
@@ -835,16 +864,20 @@ def _fit_spectrum(abund_range, cfg_file, regions, model_file, verbose):
         end_time = time.time()
         print("Synth time:", end_time - start_time, "seconds")
 
+        # Display some information about the amount of regions and abundances to test
+        print("Number of regions to test:", len(regions))
+        print("Number of abundances to test:", len(abunds))
+
     # Get the wavelengths
     wav = s.getwav()
     
     # Fit the regions (kind of... technically this determines how to shift the regions and how well everything then fits)
-    region_result = _fit_regions(regions, wav, synth_data, abund_range, verbose)
+    region_result = _fit_regions_chi(regions, wav, synth_data, abund_range, verbose)
     
     # Return the result
     return SynthResult(region_result, region_data, wav, synth_data)
 
-def fit_spectrum(cfg_file, atlas, regions, abund_range, model_file = None, verbose = False):
+def fit_chi(cfg_file, atlas, regions, abund_range, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum. The required arguments are
     
@@ -879,9 +912,9 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, model_file = None, verbo
     """
     
     regions = _setup_regions(atlas, regions)
-    return _fit_spectrum(abund_range, cfg_file, regions, model_file, verbose)
+    return _fit_chi(abund_range, cfg_file, regions, model_file, verbose)
 
-def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, model_file = None, verbose = False):
+def fit_chi_parallel(cfg_file, atlas, regions, abund_range, processes = 2, model_file = None, verbose = False):
     """
     This function synthesizes a spectrum and attempts to fit it to the observed spectrum, but distributes the work over several processes
     rather then doing it directly. The required arguments are
@@ -921,14 +954,16 @@ def fit_spectrum_parallel(cfg_file, atlas, regions, abund_range, processes = 2, 
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
     A / N different abundancies. When R and A are small the overhead of using multiple processes and coordinating them can make this slower
-    then just calling fit_spectrum. However, when A and R increases this parallel approach tends to save time since the calculations becomes
+    then just calling fit_chi. However, when A and R increases this parallel approach tends to save time since the calculations becomes
     the bottleneck rather then the overhead of using multiple processes.
     
-    Note that each processes is in essence calling fit_spectrum but for different abundancies.
+    Note that each processes is in essence calling fit_chi but for different abundancies.
     """
     
     regions = _setup_regions(atlas, regions)
-    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, model_file, verbose), verbose)
+    return _parallel_calc(abund_range, processes, _fit_chi, (cfg_file, regions, model_file, verbose), verbose)
+
+#def _fit_spectrum(
 
 def _equivalent_width(wav, inten):
     """
@@ -951,47 +986,19 @@ def _equivalent_width(wav, inten):
     # As such the equivalent width is given by ew = area/cont
     return area / cont
 
-def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose):
+def _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, verbose):
     """
-    Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
+    Fits the regions using equivalent widths.
     """
-    
+
     # Conversion factor
     conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
     
-    # Create the abundance updates and check them
-    abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
-    abund_range = np.array(abund_range)
+    # Get the abundance count
+    abund_count = len(abund_range)
     
-    # Setup the regions
-    region_data = _setup_region_data(regions)
-    
-    # Init LTE class
-    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
-
-    # Read a model
-    m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
-    
-    # Take current time
-    start_time = time.time()
-    
-    # Synth the spectrum
-    synth_data = []
-    for a in abund_updates:
-        s.updateABUND(a, verbose = verbose)
-        synth_data.append(_synth(s, m))
-    
-    # Display the amount of abundances
-    if verbose:
-        end_time = time.time()
-        print("Synth time:", end_time - start_time, "seconds")
-        print("Number of regions to test:", len(regions))
-        print("Number of abundances to test:", len(abund_updates))
-        print("Equivalent width unit:", eq_width_unit)
-
     # Get the synthetic intensities for the abundances and the wavelength
     synth_inten = [sd[0,0,0,:,0] for sd in synth_data]
-    wav = s.getwav()
 
     # Take current time again, this time to time the fitting phase
     start_time = time.time()
@@ -1001,27 +1008,27 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
     for ri, r in enumerate(regions):
         # Create an array that will contain the maximum intensities of the different abundances, for
         # this region.
-        inten_max = np.zeros(len(abund_updates), dtype = np.float64)
+        inten_max = np.zeros(abund_count, dtype = np.float64)
 
         # Create an array that will contain the maximum intensities of the different abundances, for
         # this region. Note that the intensities in question are neglecting macroturbulence.
-        inten_max_nm = np.zeros(len(abund_updates), dtype = np.float64)
+        inten_max_nm = np.zeros(abund_count, dtype = np.float64)
         
         # Create an array that will contain the equivalent widths of the different abundances, for
         # this region.
-        eq_width = np.zeros(len(abund_updates), dtype = np.float64)
+        eq_width = np.zeros(abund_count, dtype = np.float64)
         
         # Create an array that will contain the differences between the equivalent widths of the
         # synthetic and observed lines of the different abundances, for this region.
-        diff = np.zeros(len(abund_updates), dtype = np.float64)
+        diff = np.zeros(abund_count, dtype = np.float64)
         
         # Create an array that will store the scaled and convolved synthetic intensities for each abundance.
-        sinten = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
+        sinten = np.zeros((abund_count,r.nlambda), dtype = np.float64)
         
         # Create an array that will store the scaled synthetic intensities for each abundance. Note that it
         # does not carry the convolved intensities. This is essentially the synthetic intensities when
         # macroturbulence is neglected.
-        sinten_nm = np.zeros((len(abund_updates),r.nlambda), dtype = np.float64)
+        sinten_nm = np.zeros((abund_count,r.nlambda), dtype = np.float64)
         
         # Get the observed wavelengths and intensities of the region
         robs_wav = r.wav
@@ -1036,7 +1043,7 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         # Calculate the equivalent width of the observed data
         obs_ew = _equivalent_width(robs_wav, robs_inten) * conv_factor
         
-        for ai, a in enumerate(abund_updates):
+        for ai, a in enumerate(abund_range):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
             rwav, rsynth_inten_nm = r.get_contained(wav, synth_inten[ai], left_padding = 1e-9)
             
@@ -1077,7 +1084,51 @@ def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbos
         print("Fitting time:", end_time - start_time, "seconds")
     
     # Return the result
-    return SynthResult(result, region_data, wav, synth_data)
+    return result
+
+def _fit_width(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose):
+    """
+    Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
+    """
+    
+    # Create the abundance updates and check them
+    abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
+    abund_range = np.array(abund_range)
+    
+    # Setup the regions
+    region_data = _setup_region_data(regions)
+    
+    # Init LTE class
+    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
+
+    # Read a model
+    m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
+    
+    # Take current time
+    start_time = time.time()
+    
+    # Synth the spectrum
+    synth_data = []
+    for a in abund_updates:
+        s.updateABUND(a, verbose = verbose)
+        synth_data.append(_synth(s, m))
+    
+    # Get the wavelengths of the synthetic data
+    wav = s.getwav()
+    
+    # Display the amount of abundances
+    if verbose:
+        end_time = time.time()
+        print("Synth time:", end_time - start_time, "seconds")
+        print("Number of regions to test:", len(regions))
+        print("Number of abundances to test:", len(abund_updates))
+        print("Equivalent width unit:", eq_width_unit)
+    
+    # Fit the regions
+    region_result = _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, verbose)
+    
+    # Return the result
+    return SynthResult(region_result, region_data, wav, synth_data)
 
 def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.units.pm, model_file = None, verbose = False):
     """
@@ -1159,12 +1210,106 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
     The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
     different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
     A / N different abundancies. When R and A are small the overhead of using multiple processes and coordinating them can make this slower
-    then just calling fit_spectrum. However, when A and R increases this parallel approach tends to save time since the calculations becomes
+    then just calling fit_width. However, when A and R increases this parallel approach tends to save time since the calculations becomes
     the bottleneck rather then the overhead of using multiple processes.
     
-    Note that each processes is in essence calling fit_spectrum but for different abundancies.
+    Note that each processes is in essence calling fit_width but for different abundancies.
     """
     
     regions = _setup_regions(atlas, regions)
     return _parallel_calc(abund_range, processes, _fit_width, (cfg_file, regions, eq_width_unit, model_file, verbose), verbose)
+
+def _fit_spectrum(abund_range, cfg_file, regions, eq_width_unit, model_file, verbose):
+    """
+    Creates a synthetic spectrum and fits it against the observed spectrum using equivalent widths.
+    """
+    
+    # Create the abundance updates and check them
+    abund_updates = [au.abund(_ELEMENT, a) for a in abund_range]
+    abund_range = np.array(abund_range)
+    
+    # Setup the regions
+    region_data = _setup_region_data(regions)
+    
+    # Init LTE class
+    s = p.pyLTE(cfg_file, region_data, nthreads = 1, solver = 0)
+
+    # Read a model
+    m = sp.model(model_file if model_file != None else DEFAULT_MODEL_FILE)
+    
+    # Take current time
+    start_time = time.time()
+    
+    # Synth the spectrum
+    synth_data = []
+    for a in abund_updates:
+        s.updateABUND(a, verbose = verbose)
+        synth_data.append(_synth(s, m))
+    
+    # Get the wavelengths of the synthetic data
+    wav = s.getwav()
+    
+    # Display the amount of abundances
+    if verbose:
+        end_time = time.time()
+        print("Synth time:", end_time - start_time, "seconds")
+        print("Number of regions to test:", len(regions))
+        print("Number of abundances to test:", len(abund_updates))
+        print("Equivalent width unit:", eq_width_unit)
+    
+    # Fit the regions
+    region_result_chi = _fit_regions_chi(regions, wav, synth_data, abund_range, verbose)
+    region_result_ew = _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, verbose)
+    
+    # Return a pair of results, one from using chi squared and one from using equivalent widths
+    return ResultPair(SynthResult(region_result_chi, region_data, wav, synth_data), SynthResult(region_result_ew, region_data, wav, synth_data))
+
+def fit_spectrum(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_unit = astropy.units.pm, model_file = None, verbose = False):
+    """
+    This function synthesizes a spectrum and attempts to fit it to the observed spectrum for different iron abundancies. It does so in parallel, distributing
+    the calculations over the given amount of processes. The required arguments are
+    
+        cfg_file          : The name of the cfg file.
+
+        atlas             : An atlas object, which contains the observed spectrum.
+
+        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+
+        abund_range       : A range over the iron abundancies to synthezise the spectrum form.
+        
+    The optional arguments are
+    
+        processes         : The amount of processes to distribute the work over.
+        
+        eq_width_unit     : The unit for the equivalent width. These units come from astropy, specifically the module astropy.units.
+                            Default is astropy.units.pm, which stands for picometers.
+        
+        model_file        : Sets the model file. If this is None, the default model file specified by DEFAULT_MODEL_FILE will be used.
+                            Default is None.
+        
+        verbose           : Determines if more information then usual should be displayed. This is mainly for debugging.
+                            Default is False.
+
+    Returns a ResultPair object that contains the results of all calculations.
+
+    Fitting is done twise. Once using chi squared to compare the observed and synthetic spectrum for the different regions. Essentially, if we have
+    a region, then for each abundance the chi squared of the observed and synthetic spectrum is calculated. The abundance with smallest chi squared
+    is then taken as the best value. The second fit is done by calculating the equivalent width of each region, both for the synthetic data and for
+    the observed data. The abundance which gives the equivalent width that matches with the equivalent width of the observed data is taken as the
+    best iron abundance.
+    
+    The iron abundances are given as a range of float numbers. These numbers represents the relative abundance of iron compared to hydrogen. Specifically,
+    if the number density of hydrogen and iron is N(H) and N(Fe) respecively, the abundance of iron A(Fe) is expected to be
+    
+        A(Fe) = log(N(Fe)) - log(N(H))
+    
+    There are other standards for abundance, but they are not used here.
+    
+    The distribution of work over the processes is done by making the processes handle different abundancies. For example, if we have R
+    different regions, A different abundancies and N processes are used, then each process works with R different regions and approximately
+    A / N different abundancies.
+    """
+    
+    regions = _setup_regions(atlas, regions)
+    return _parallel_calc(abund_range, processes, _fit_spectrum, (cfg_file, regions, eq_width_unit, model_file, verbose), verbose)
 

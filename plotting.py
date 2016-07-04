@@ -35,6 +35,9 @@ plot_font_size = 11
 # The figure size (in inches) of some functions
 plot_figure_size = (7, 7)
 
+def options(*args, **kwargs):
+    return args, kwargs
+
 def _get_figure_axes(figure_axes):
     """
     Gets the axis object used to plot stuff. Specifically, if figure_axes is None the current
@@ -44,6 +47,20 @@ def _get_figure_axes(figure_axes):
     if figure_axes == None:
         figure_axes = _plt.gca()
     return figure_axes
+
+def _adjust_xticks(ax, adjustment):
+    # Adjust the x ticks
+    if isinstance(adjustment, int) and adjustment > 0:
+        xticks = ax.get_xticks()
+        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = adjustment))
+    elif hasattr(adjustment, "__call__"):
+        xticks = ax.get_xticks()
+        ax.set_xticks(adjustment(xticks))
+    elif adjustment != None:
+        try:
+            ax.set_xticks(adjustment)
+        except:
+            raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer, a function or a list of xticks to use, but it had type " + type(adjustment).__name__ + " and value " + str(adjustment))
 
 def _filter_abund(abund_filter, abund, inten):
     """
@@ -160,22 +177,23 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
     ax.set_ylim([0, 1.1])
     
     # Plot the unshifted, shifted and observed spectrums
-    lbl_best = ax.plot(wav, region_result.best_inten, color = "red", label = "Not shifted")
-    lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Shifted")
+    lbl_best = ax.plot(wav, region_result.best_inten, color = "red", label = "Shifted")
+    lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Not shifted")
     lbl_obs = ax.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "FTS atlas")
 
     # Set the formatter
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
     # Adjust the x ticks
-    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
-        xticks = ax.get_xticks()
-        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
-    elif hasattr(xticks_adjust, "__call__"):
-        xticks = ax.get_xticks()
-        ax.set_xticks(xticks_adjust(xticks))
-    elif xticks_adjust != None:
-        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
+#    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
+#        xticks = ax.get_xticks()
+#        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
+#    elif hasattr(xticks_adjust, "__call__"):
+#        xticks = ax.get_xticks()
+#        ax.set_xticks(xticks_adjust(xticks))
+#    elif xticks_adjust != None:
+#        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
+    _adjust_xticks(ax, xticks_adjust)
     
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
@@ -307,14 +325,15 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
     # Adjust the x ticks
-    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
-        xticks = ax.get_xticks()
-        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
-    elif hasattr(xticks_adjust, "__call__"):
-        xticks = ax.get_xticks()
-        ax.set_xticks(xticks_adjust(xticks))
-    elif xticks_adjust != None:
-        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
+#    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
+#        xticks = ax.get_xticks()
+#        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
+#    elif hasattr(xticks_adjust, "__call__"):
+#        xticks = ax.get_xticks()
+#        ax.set_xticks(xticks_adjust(xticks))
+#    elif xticks_adjust != None:
+#        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
+    _adjust_xticks(ax, xticks_adjust)
     
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
@@ -382,7 +401,72 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
     _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
-def plot_vs_abund(abund, values, ylabel = None, figure_axes = None):
+def plot_vs(func, xlabel = None, ylabel = None, xticks_adjust = None, xlim = None, ylim = None):
+    """
+    Creates a function that plots two quantities derived from a region result object, such as an instance of
+    ChiRegionResult or EWRegionResult, against each other. The created function is returned. The required
+    argument is
+    
+        func : A function that extracts the x and y values from a region result object. As such it takes one
+               required argument and returns two lists, or arrays, of equal length. The first list is the
+               x values and the second is the y values.
+
+    The optional arguments are
+    
+        xlabel        : The label of the x axis. If this argument is None, the y axis will not have a label.
+                        Default is None.
+    
+        ylabel        : The label of the y axis. If this argument is None, the y axis will not have a label.
+                        Default is None.
+        
+        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
+        
+        xlim          : Sets the limits of the x axis. If this is None, no limit is set.
+                        Default is None.
+        
+        ylim          : Sets the limits of the y axis. If this is None, no limit is set.
+                        Default is None.
+    
+    The returned function has a single required argument, namely
+
+        region_result  : The region result object.
+    
+    It also has the following optional argument
+        
+        figure_axes : Sets the axes object. If this is None, then the result of
+                      matplotlib.pyplot.gca() will be used. And if this is not None
+                      then it will be used to plot the abundance. Also note that
+                      if this is not None, the plot will not be shown implicitly.
+                      Thereby this can be used to have several plots in the same figure.
+                      Default is None.
+    """
+    
+    def plotting_func(region_result, figure_axes = None):
+        # Get the axes object
+        ax = _get_figure_axes(figure_axes)
+        
+        x, y = func(region_result)
+        ax.plot(x, y)
+        
+        # Adjust the x ticks
+        _adjust_xticks(ax, xticks_adjust)
+        
+        if xlim != None:
+            ax.set_xlim(xlim)
+        if ylim != None:
+            ax.set_ylim(ylim)
+        if xlabel != None:
+            ax.set_xlabel(xlabel, fontsize = plot_font_size)
+        if ylabel != None:
+            ax.set_ylabel(ylabel, fontsize = plot_font_size)
+        if figure_axes == None:
+            _plt.show()
+    return plotting_func
+
+def plot_vs_abund(abund, values, ylabel = None, figure_axes = None, xticks_adjust = None):
     """
     Plots a quantity against the abundance. The required arguments are
 
@@ -402,19 +486,28 @@ def plot_vs_abund(abund, values, ylabel = None, figure_axes = None):
                       if this is not None, the plot will not be shown implicitly.
                       Thereby this can be used to have several plots in the same figure.
                       Default is None.
+        
+        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
     """
     
     # Get the axes object
     ax = _get_figure_axes(figure_axes)
     
     ax.plot(abund, values)
+    
+    # Adjust the x ticks
+    _adjust_xticks(ax, xticks_adjust)
+    
     ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
     if ylabel != None:
         ax.set_ylabel(ylabel, fontsize = plot_font_size)
     if figure_axes == None:
         _plt.show()
 
-def plot_chisq(region_result, figure_axes = None):
+def plot_chisq(region_result, figure_axes = None, xticks_adjust = None):
     """
     Plots chi squared for the given region result vs the abundance. The required argument is
 
@@ -423,17 +516,22 @@ def plot_chisq(region_result, figure_axes = None):
     
     The optional argument is
     
-        figure_axes : Sets the axes object. If this is None, then the result of
-                      matplotlib.pyplot.gca() will be used. And if this is not None
-                      then it will be used to plot the abundance. Also note that
-                      if this is not None, the plot will not be shown implicitly.
-                      Thereby this can be used to have several plots in the same figure.
-                      Default is None.
+        figure_axes   : Sets the axes object. If this is None, then the result of
+                        matplotlib.pyplot.gca() will be used. And if this is not None
+                        then it will be used to plot the abundance. Also note that
+                        if this is not None, the plot will not be shown implicitly.
+                        Thereby this can be used to have several plots in the same figure.
+                        Default is None.
+        
+        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
     """
         
-    plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$")
+    plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$", figure_axes = figure_axes, xticks_adjust = xticks_adjust)
 
-def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, only_best_synth = False, num = 50):
+def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, show_labels = True, only_best_synth = False, num = 50, figure_axes = None):
     """
     Plots the bisector of the given region result. It is possible to plot this for both synthetic and observed data. By default both are shown.
 
@@ -456,17 +554,29 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         show_synth      : Determines if the synthetic spectrum should be shown.
                           Default is True.
         
+        show_labels     : Determines if the axis labels should be shown.
+                          Default is True.
+        
         only_best_synth : Determines if only the best fit synthetic spectrum should be shown.
                           Default is False.
         
         num             : The amount of points for which the bisector should be calculated.
                           Default is 50.
+        
+        figure_axes     : Sets the axes object. If this is None, then the result of
+                          matplotlib.pyplot.gca() will be used. And if this is not None
+                          then it will be used to plot the abundance. Also note that
+                          if this is not None, the plot will not be shown implicitly.
+                          Thereby this can be used to have several plots in the same figure.
+                          Default is None.
     
     Note that at least one of plot_observed or plot_synth must be true. Otherwise an exception is raised.
     """
     
     if not (plot_observed or plot_synth):
         print("Must plot something")
+
+    ax = _get_figure_axes(figure_axes)
 
     # Plot the bisector of the synthetic data    
     if plot_synth:
@@ -481,8 +591,8 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         for a, rinten in enumerate(rinten_all):
             bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
             if show_synth:
-                _plt.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
-            _plt.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
+                ax.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
+            ax.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
     
     # Plot the bisector of the observed data
     if plot_observed:
@@ -490,12 +600,14 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         rinten = region_result.region.inten
         bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
         if show_observed:
-            _plt.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
-        _plt.plot(bwav, binten, color = "blue")
+            ax.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
+        ax.plot(bwav, binten, color = "blue")
 
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
-    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
-    _plt.show()
+    if show_labels:
+        ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
+        ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
+    if figure_axes == None:
+        _plt.show()
 
 def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, linestyle_obs = "-", legend_pos = 4):
     """
@@ -784,6 +896,29 @@ def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
         _plt.xlabel(xlabel, fontsize = plot_font_size)
     if ylabel != None:
         _plt.ylabel(ylabel, fontsize = plot_font_size)
+    _plt.show()
+
+def plot_row(obj, plot_funcs, titles = None, figsize = None, args = None):
+    """
+    """
+
+    if args == None:
+        args = [options()]*len(plot_funcs)
+    elif len(args) != len(plot_funcs):
+        raise Exception("plot_options must be either None or list of the same length as plot_funcs")
+    else:
+        args = [a if a != None else options() for a in args]
+
+    if figsize == None:
+        fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs))
+    else:
+        fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs), figsize = figsize)
+    for i, f in enumerate(plot_funcs):
+        if titles != None:
+            ax[i].set_title(titles[i], fontsize = plot_font_size)
+        f(obj, *args[i][0], figure_axes = ax[i], **args[i][1])
+    
+    _plt.tight_layout()
     _plt.show()
 
 def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):

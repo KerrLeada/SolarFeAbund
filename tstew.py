@@ -98,18 +98,19 @@ def print_ew():
         print("    Observed: ", r.obs_eq_width)
         print("")
 
-def plot_diff(region_nr):
+def plot_diff(region_nr, **kwargs):
     regres = result.region_result[region_nr]
-    plotting.plot_vs_abund(regres.abund, regres.diff)
+    plotting.plot_vs_abund(regres.abund, regres.diff, **kwargs)
 
-def plot_bisect(region_nr, abund_filter = None, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, num = 50):
-    plotting.plot_bisect(result.region_result[region_nr], abund_filter = abund_filter, offset = offset, plot_observed = plot_observed, plot_synth = plot_synth, show_observed = show_observed, show_synth = show_synth, num = num)
+def plot_bisect(region_nr, **kwargs):
+    plotting.plot_bisect(result.region_result[region_nr], **kwargs)
 
 def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     """
     Counts the number of data points in wav between lambda0 and lambda_end. If wav is not given, the data from the
     atlas in the given region will be used as default.
     """
+    
     if wav == None:
         wav, _, _ = at.getatlas(lambda0 - padding, lambda_end + padding, cgs = True)
     return len(wav[(lambda0 <= wav) & (wav <= lambda_end)])
@@ -118,6 +119,7 @@ def _conv(energy):
     """
     Converts energy from 1/cm to eV
     """
+    
     return (astropy.constants.h*astropy.constants.c*(energy * (1/astropy.units.cm))).to(astropy.units.eV)
 
 # Show the time the calculation took
