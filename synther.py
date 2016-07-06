@@ -566,6 +566,9 @@ class ResultPair(object):
         
         return ResultPair(self.result_chi._fuse_result(other.result_chi), self.result_ew._fuse_result(other.result_ew))
 
+def save_computation(filename, result_pair):
+    np.save(filename, np.array([synth_data[0,0,0,:,0] for synth_data in result_pair.result_chi.raw_synth_data]))
+
 def _fuse_result(result_list):
     """
     Fuses a list of results together.

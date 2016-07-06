@@ -94,7 +94,7 @@ def print_shifts(show_all = True):
 # Create the abundances (these limits where chosen after calculating
 # for a larger interval and noticing it was too large... specifically
 # it used to be from -4.1 to -5.0).
-abunds = -np.arange(4.3, 4.8, step = 0.01)
+abunds = -np.arange(4.3, 4.8, step = 0.001)
 
 # Synth the spectrum and attempt to fit it to the observed data using the chi squared method
 time_start = time.time()

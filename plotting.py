@@ -204,6 +204,50 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
         _plt.tight_layout()
         _plt.show()
 
+def _create_bins(values, delta):
+    bins = []
+    bin_content = set()
+    
+    # Loop through each value
+    for v in values:
+        # If the value has not already been added to the bins...
+        if v not in bin_content:
+            # Add the value to the bins
+            bins.append(v)
+            bin_content.add(v)
+            
+            # Add any other value that is close enough and not already in the bins to the bins
+            for val in values:
+                if val not in bin_content and abs(v - val) <= delta:
+                    bin_content.add(v)
+    return bins
+
+def plot_hist(values, delta = 0.0, bins = None, bin_comparator = None, xlabel = None, ylabel = None, figure_axes = None):
+    """
+    """
+
+    ax = _get_figure_axes(figure_axes)
+    
+    if bins == None:
+        bins = _create_bins(values, delta)
+    
+    content = np.zeros(len(bins), dtype = np.float64)
+    for i, b in enumerate(bins):
+        for v in values:
+            if abs(v - b) <= delta:
+                content[i] += 1
+    bin_data = sorted(zip(bins, content), cmp = bin_comparator, key = lambda bd: bd[0])
+    
+    bins, content = zip(*bin_data)
+    ax.plot(bins, content)
+    if xlabel != None:
+        ax.set_xlabel(xlabel)
+    if ylabel != None:
+        ax.set_ylabel(ylabel)
+    if figure_axes == None:
+        _plt.tight_layout()
+        _plt.show()
+
 def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, figure_axes = None, xticks_adjust = None):
     """
     Plots the given region result.
