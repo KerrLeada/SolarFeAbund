@@ -26,14 +26,60 @@ plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
                    "#A98765", "#0152A3", "#0FFFF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
-# Set the font to the default
-_plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
-
 # Set the font size of the plots
 plot_font_size = 11
+plot_title_font_size = plot_font_size
+
+# Set the font to the default
+_plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
+_plt.rcParams.update({"font.size": plot_font_size})
 
 # The figure size (in inches) of some functions
 plot_figure_size = (7, 7)
+
+def plot_stuff(result_pair):
+    """
+    This function plots arbitrary stuff. It is not always constant what it does, since
+    it might be edited. It takes a single argument
+    
+        result_pair : An instance of ResultPair that contains the result of a calculation.
+    """
+    
+    plot_mosaic([result_pair.result_chi.region_result[-1]], 1, 1, plot_region, xticks_adjust = 5, figsize = (5,5), xlim = (5231.9296874997044, 5233.9281225582981))
+
+
+def _calc_ticks(ticks, values):
+    if isinstance(ticks, int):
+        ticks = np.linspace(min(values), max(values), num = ticks)
+    elif hasattr(ticks, "__call__"):
+        ticks = ticks(values)
+    return ticks
+
+def _abund(abund):
+    """
+    Determines the convension for abundance numbers
+    """
+    
+    return abund
+
+def partial(func, *args, **kwargs):
+    """
+    Partially applies the given function
+    """
+    
+    def partial_application(*args2, **kwargs2):
+        argums = args + args2
+        keywargs = kwargs.copy()
+        keywargs.update(kwargs2)
+        return func(*argums, **keywargs)
+    return partial_application
+
+def _set_title(ax, title):
+    """
+    Sets the title, and makes sure the font size is correct
+    """
+    
+    ax.set_title(title, fontsize = plot_title_font_size)
 
 def options(*args, **kwargs):
     return args, kwargs
@@ -48,15 +94,22 @@ def _get_figure_axes(figure_axes):
         figure_axes = _plt.gca()
     return figure_axes
 
-def _adjust_xticks(ax, adjustment):
+def _adjust_xticks(ax, adjustment, limits = None):
+    # Get the x ticks
+    xticks = ax.get_xticks()
+    
     # Adjust the x ticks
     if isinstance(adjustment, int) and adjustment > 0:
-        xticks = ax.get_xticks()
-        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = adjustment))
+        if None == limits:
+            limits = (xticks[0], xticks[-1])
+        ax.set_xticks(np.linspace(limits[0], limits[1], num = adjustment))
     elif hasattr(adjustment, "__call__"):
+        # Get the x ticks
         xticks = ax.get_xticks()
+        if None != limits:
+            xticks = xticks[(limits[0] <= xticks) & (xticks <= limits[1])]
         ax.set_xticks(adjustment(xticks))
-    elif adjustment != None:
+    elif None != adjustment:
         try:
             ax.set_xticks(adjustment)
         except:
@@ -162,7 +215,7 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     if figure_axes == None:
         _plt.show()
 
-def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, figure_axes = None, xticks_adjust = None):
+def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xlim = None, ylim = None, figure_axes = None, xticks_adjust = None):
     """
     """
     
@@ -178,23 +231,19 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
     
     # Plot the unshifted, shifted and observed spectrums
     lbl_best = ax.plot(wav, region_result.best_inten, color = "red", label = "Shifted")
-    lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Not shifted")
+    lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Original")
     lbl_obs = ax.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "FTS atlas")
 
     # Set the formatter
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
     # Adjust the x ticks
-#    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
-#        xticks = ax.get_xticks()
-#        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
-#    elif hasattr(xticks_adjust, "__call__"):
-#        xticks = ax.get_xticks()
-#        ax.set_xticks(xticks_adjust(xticks))
-#    elif xticks_adjust != None:
-#        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
-    _adjust_xticks(ax, xticks_adjust)
+    _adjust_xticks(ax, xticks_adjust, limits = (wav[0], wav[-1]))
     
+    if None != xlim:
+        ax.set_xlim(xlim)
+    if None != ylim:
+        ax.set_ylim(ylim)
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
@@ -222,9 +271,12 @@ def _create_bins(values, delta):
                     bin_content.add(v)
     return bins
 
-def plot_hist(values, delta = 0.0, bins = None, bin_comparator = None, xlabel = None, ylabel = None, figure_axes = None):
+def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator = None, xlabel = None, ylabel = None, xticks = None, yticks = None, figure_axes = None):
     """
     """
+    
+    if len(values) == 0:
+        raise Exception("Need at least 1 value, but 'values' was empty.")
 
     ax = _get_figure_axes(figure_axes)
     
@@ -238,12 +290,29 @@ def plot_hist(values, delta = 0.0, bins = None, bin_comparator = None, xlabel = 
                 content[i] += 1
     bin_data = sorted(zip(bins, content), cmp = bin_comparator, key = lambda bd: bd[0])
     
-    bins, content = zip(*bin_data)
-    ax.plot(bins, content)
+    bins, content = map(np.array, zip(*bin_data))
+    
+    # Set the bin width
+    if bin_width == None:
+        bin_width = min(bins[1:] - bins[:-1]) if len(bins) > 1 else 1
+    elif hasattr(bin_width, "__call__"):
+        bin_width = bin_width(bins)
+    
+    # Plot the bars
+    for b, c in bin_data:
+        ax.bar(b - bin_width/2.0, c, width = bin_width, bottom = 0)
+
+    ax.set_xlim(bins[0] - 3.0*bin_width/4.0, bins[-1] + 3.0*bin_width/4.0)
+    ax.set_ylim(0, max(content))
+
+    if None != xticks:
+        ax.set_xticks(_calc_ticks(ticks))
+    if None != yticks:
+        ax.set_yticks(_calc_ticks(ticks))
     if xlabel != None:
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(xlabel, fontsize = plot_font_size)
     if ylabel != None:
-        ax.set_ylabel(ylabel)
+        ax.set_ylabel(ylabel, fontsize = plot_font_size)
     if figure_axes == None:
         _plt.tight_layout()
         _plt.show()
@@ -325,10 +394,6 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     # Get the wavelengths
     wav = region_result.wav
     
-    # Make sure entire y scale is shown
-    ax.set_xlim([wav[0], wav[-1]])
-    ax.set_ylim([0, 1.1])
-    
     # List of the legend labels
     legend_labels = []
 
@@ -377,13 +442,19 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
 #        ax.set_xticks(xticks_adjust(xticks))
 #    elif xticks_adjust != None:
 #        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
-    _adjust_xticks(ax, xticks_adjust)
+    xlimits = (min(wav[0], rwav[0]), max(wav[-1], rwav[-1]))
+    print("xlimits =", xlimits)
+    _adjust_xticks(ax, xticks_adjust, limits = xlimits)
+
+    # Make sure entire y scale is shown
+    ax.set_xlim(xlimits)
+    ax.set_ylim([0, 1.1])
     
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
-        ax.legend(handles = legend_labels, loc = legend_pos, fontsize = 8)
+        ax.legend(handles = legend_labels, loc = legend_pos, fontsize = 8, frameon = False)
     if figure_axes == None:
         _plt.tight_layout()
         _plt.show()
@@ -653,7 +724,7 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
     if figure_axes == None:
         _plt.show()
 
-def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, linestyle_obs = "-", legend_pos = 4):
+def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4):
     """
     Plots the intensity that handles macroturbulence and the corresponding intensity that does not handle macroturbulence against
     the wavelength, for an abundance. If no abundance is specified, the best fit abundance is used. The required argument is
@@ -675,9 +746,18 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
                         invisible and a value of 1 is fully visible.
                         Default is 1.
         
-        linestyle_obs : Determines the style with which the observed spectrum should be drawn. A value of
-                        "-" means it is drawn as a solid line.
-                        Default is "-".
+        xticks        : If not None, this sets the x ticks of the plot. It can be a positive integer, in
+                        which case it determines how many x ticks should be placed between the minimum and
+                        maximum wavelengths (including bounderies). Otherwise it is an array over x ticks.
+                        Default is None.
+        
+        xticks_fmt    : If not None, it sets the format string for the x ticks.
+                        Default is "%0.2f".
+        
+        linestyle_obs : Determines the style with which the observed spectrum should be drawn. For example,
+                        a value of "-" means it is drawn as a solid line, while a value of "--" means it is
+                        drawn as a dashed line.
+                        Default is "--".
         
         legend_pos    : Determines the position of the legend. Valid values are
                         
@@ -703,21 +783,41 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     # If the abundance index is None, set it to the index of the best fit abundance    
     if abund_index == None:
         abund_index = region_result.best_index
-        
+    
+    # Get the intensities
+    inten_nm = region_result.inten_no_macroturb[abund_index]
+    inten_wm = region_result.inten[abund_index]
+    inten_obs = region_result.region.inten
+    
     # Plot the intensities without macroturbulence and then with macroturbulence against the wavelength
-    lbl_nm = _plt.plot(region_result.wav, region_result.inten_no_macroturb[abund_index], color = "red", label = "Not convolved")
-    lbl = _plt.plot(region_result.wav, region_result.inten[abund_index], color = "green", label = "Convolved")
+    lbl_nm = _plt.plot(region_result.wav, inten_nm, color = "red", label = "Not convolved")
+    lbl = _plt.plot(region_result.wav, inten_wm, color = "green", label = "Convolved")
     labels = [lbl_nm[0], lbl[0]]
     
     # Plot the observed spectrum if show_obs is true
     if show_obs and alpha_obs != 0.0:
-        lbl_obs = _plt.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "Observed", alpha = alpha_obs, linestyle = linestyle_obs)
+        lbl_obs = _plt.plot(region_result.region.wav, inten_obs, color = "blue", label = "Observed", alpha = alpha_obs, linestyle = linestyle_obs)
         labels.append(lbl_obs[0])
     
     # Add the legend showing which curve is which, as well as the x-axis and y-axis labels... then show the plot
     _plt.legend(handles = labels, loc = legend_pos, fontsize = plot_font_size)
     _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
     _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
+
+    # Adjust the y limits
+    min_inten = min([min(inten_nm), min(inten_wm), min(inten_obs)])
+    _plt.ylim([min_inten - 0.05, 1.1])
+    
+    # Adjust the x ticks
+    if isinstance(xticks, int) and xticks > 0:
+        xticks = np.linspace(region_result.wav[0], region_result.wav[-1], num = xticks)
+        _plt.xticks(xticks)
+    elif xticks != None:
+        _plt.xticks(xticks)
+    if xticks_fmt != None:
+        _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter(xticks_fmt))
+    
+    # Show the plot
     _plt.show()
 
 def _estimate_line_wavelength(region):
@@ -835,7 +935,7 @@ def dual_abund_histogram(result_chi, result_ew, bins = 5, with_H_as_12 = False, 
 
     # Plot the histograms
     for ax, r, t in zip(axes, results, titles):
-        ax.set_title(t, fontsize = plot_font_size)
+        ax.set_title(t, fontsize = plot_title_font_size)
         if xticks != None:
             ax.set_xticks(xticks)
         if yticks != None:
@@ -942,16 +1042,9 @@ def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
         _plt.ylabel(ylabel, fontsize = plot_font_size)
     _plt.show()
 
-def plot_row(obj, plot_funcs, titles = None, figsize = None, args = None):
+def plot_row(obj, plot_funcs, titles = None, figsize = None):
     """
     """
-
-    if args == None:
-        args = [options()]*len(plot_funcs)
-    elif len(args) != len(plot_funcs):
-        raise Exception("plot_options must be either None or list of the same length as plot_funcs")
-    else:
-        args = [a if a != None else options() for a in args]
 
     if figsize == None:
         fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs))
@@ -959,8 +1052,8 @@ def plot_row(obj, plot_funcs, titles = None, figsize = None, args = None):
         fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs), figsize = figsize)
     for i, f in enumerate(plot_funcs):
         if titles != None:
-            ax[i].set_title(titles[i], fontsize = plot_font_size)
-        f(obj, *args[i][0], figure_axes = ax[i], **args[i][1])
+            ax[i].set_title(titles[i], fontsize = plot_title_font_size)
+        f(obj, figure_axes = ax[i])
     
     _plt.tight_layout()
     _plt.show()
@@ -1087,10 +1180,18 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
         fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey)
     else:
         fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey, figsize = figsize)
-    axes = axes.reshape(rows*columns)
+    
+    # Reshape the axes array to a 1 dimensional array, if it is an array
+    # Otherwise turn it into a 1 dimensional array
+    if isinstance(axes, np.ndarray):
+        axes = axes.reshape(rows*columns)
+    else:
+        axes = np.array([axes])
+    
+    # Plot everything
     for i, (obj, ax) in enumerate(zip(objects, axes)):
         if titles != None:
-            ax.set_title(titles[i], fontsize = plot_font_size)
+            ax.set_title(titles[i], fontsize = plot_title_font_size)
         if xticks != None:
             ax.set_xticks(xticks)
         if yticks != None:

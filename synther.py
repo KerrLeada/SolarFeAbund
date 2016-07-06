@@ -33,6 +33,7 @@ import time
 
 # Constants... as in, not really constants, but should probably never be modified during runtime
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
+_CONTINUUM_CFG_FILE = "data/nolines.cfg"
 _ELEMENT = "Fe"
 
 # Original value: 101
@@ -115,9 +116,9 @@ class ChiRegionResult(object):
                                   unscaled intensities for an abundance can be obtained by multiplying with the corresponding
                                   scale factor in inten_scale_factor_nm.
         
-        shift                   : An array of the best shift for each abundance.
+        shift                   : An array of the best shift for each abundance. This is a 1 dimensional array.
         
-        chisq                   : The chi squared of each abundance, for the best shift. This is an
+        chisq                   : The chi squared of each abundance, for the best shift. This is a 1 dimensional array.
         
         shift_all               : A list of all shifts.
         
