@@ -248,6 +248,14 @@ class ChiRegionResult(object):
         self.best_inten = inten[best]
         self.best_inten_scale_factor = inten_scale_factor[best]
     
+    def minimized_quantity(self):
+        """
+        Returns the best value of the quantity, in this case the chi squared of the synthetic and observed line profiles, that
+        was minimized in order to fit the synthetic spectrum to the observed spectrum for this region. 
+        """
+        
+        return self.best_chisq 
+    
     def _fuse_result(self, other):
         """
         Fuses the result of this result with the other result. Essentially this assumes that the abundances of this result
@@ -434,6 +442,15 @@ class EWRegionResult(object):
         self.best_diff = diff[best]
         self.best_abund = abund[best]
 
+    def minimized_quantity(self):
+        """
+        Returns the best value of the quantity, in this case the difference in equivalent width between the synthetic
+        and observed lines, that was minimized in order to fit the synthetic spectrum to the observed spectrum for
+        this region. 
+        """
+        
+        return self.best_diff
+
     def _fuse_result(self, other):
         """
         Fuses the result of this result with the other result. Essentially this assumes that the abundances of this result
@@ -466,23 +483,26 @@ class SynthResult(object):
     """
     SynthResult encapsulates the result of a fit. This is the constructor. The arguments are
         
-            region_result  : A list of region result objects. These are either instances of ChiRegionResult
-                             or EWRegionResult, depending on how the fit was done.
+            region_result      : A list of region result objects. These are either instances of ChiRegionResult
+                                 or EWRegionResult, depending on how the fit was done.
             
-            region_data    : An array containing the region data used in the calculations. The elements in
-                             this array are tuples. Specifically they are regions on tuple form (see the
-                             regions module for more information).
+            region_data        : An array containing the region data used in the calculations. The elements in
+                                 this array are tuples. Specifically they are regions on tuple form (see the
+                                 regions module for more information).
             
-            wav            : The wavelengths of the synthetic data.
+            wav                : The wavelengths of the synthetic data.
             
-            raw_synth_data : A list containing the raw synthetic data.
+            raw_synth_data     : A list containing the raw synthetic data.
             
-            best_abunds    : An array of the best abundances of each region.
+            best_abunds        : An array of the best abundances of each region.
             
-            abund          : The mean abundance. It is the mean of best_abunds.
+            abund              : The mean abundance. It is the mean of best_abunds.
             
-            error_abund    : The error of the mean abundance. This is essentially the standard deviation
-                             of best_abunds.
+            error_abund        : The error of the mean abundance. This is essentially the standard deviation
+                                 of best_abunds.
+            
+            minimized_quantity : An array of the minimized values of each region of the quantity the was minimized to fit the
+                                 synthetic and observed lines. 
     """
     
     def __init__(self, region_result, region_data, wav, raw_synth_data):
@@ -508,6 +528,7 @@ class SynthResult(object):
         self.best_abunds = np.array([r.best_abund for r in region_result])
         self.abund = np.mean(self.best_abunds)
         self.error_abund = np.std(self.best_abunds)
+        self.minimized_quantity = np.array([r.minimized_quantity() for r in region_result])
     
     def _fuse_result(self, other):
         """

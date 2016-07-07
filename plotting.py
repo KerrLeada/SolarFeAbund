@@ -15,6 +15,7 @@ import abundutils as _au
 import satlas as _sa
 import scipy.interpolate as si
 import bisect
+import astropy.units
 
 # Get the atlas
 _at = _sa.satlas()
@@ -37,6 +38,19 @@ _plt.rcParams.update({"font.size": plot_font_size})
 # The figure size (in inches) of some functions
 plot_figure_size = (7, 7)
 
+def estimate_minimum(wav, inten, num = 1000):
+    """
+    Estimates the minimum intensity using quadratic interpolation. The optional argument is
+    
+        num : The number of points to use when estimating the minimum.
+              Default is 1000.
+    """
+    
+    tck = si.splrep(wav, inten)
+    wav = np.linspace(wav[0], wav[-1], num = 1000)
+    inten = si.splev(wav, tck)
+    return wav[inten == min(inten)][0]
+
 def plot_stuff(result_pair):
     """
     This function plots arbitrary stuff. It is not always constant what it does, since
@@ -45,7 +59,19 @@ def plot_stuff(result_pair):
         result_pair : An instance of ResultPair that contains the result of a calculation.
     """
     
-    plot_mosaic([result_pair.result_chi.region_result[-1]], 1, 1, plot_region, xticks_adjust = 5, figsize = (5,5), xlim = (5231.9296874997044, 5233.9281225582981))
+    result = result_pair.result_chi
+    data = zip(result.best_abunds, [r.best_shift for r in result.region_result])
+    data = sorted(data, key = lambda x: x[1])
+    abunds, best_shifts = map(np.array, zip(*data))
+    
+    _plt.figure(figsize=(5,4))
+#    xticks = _plt.xticks()[0]
+    _plt.plot(abunds, best_shifts, ".")
+#    _plt.yticks([0,1,2,3,4])
+    _plt.xlabel(u"$\\log A_{Fe}$")
+    _plt.ylabel(u"Shift [Å]")
+    _plt.tight_layout()
+    _plt.show()
 
 
 def _calc_ticks(ticks, values):
