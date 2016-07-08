@@ -17,14 +17,26 @@ import scipy.interpolate as si
 import bisect
 import astropy.units
 
+def plot_stuff(result_pair):
+    """
+    This function plots arbitrary stuff. It is not always constant what it does, since
+    it might be edited. It takes a single argument
+    
+        result_pair : An instance of ResultPair that contains the result of a calculation.
+    """
+    
+    result = result_pair.result_chi
+    region_result = result.region_result
+    plot_row(region_result[14], [partial(plot_region, show_abunds = True, abund_filter = [127, 350, 490], xticks = 4), plot_vs(lambda r: (r.abund, r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xticks = [-4.7, -4.43333333, -4.56666667, -4.3])], figsize = (7,3.5))
+
 # Get the atlas
 _at = _sa.satlas()
 
 # A list of colors to use in plots
-plot_color_list = ["#FF0000", "#00FF00", "#FF00FF",
-                   "#11FF0A", "#AAAA00", "#00AAAA",
-                   "#AF009F", "#0F3FF0", "#F0FA0F",
-                   "#A98765", "#0152A3", "#0FFFF0",
+plot_color_list = ["#AA0000", "#008800", "#AA00AA",
+                   "#519A2A", "#AAAA00", "#00AAAA",
+                   "#AF009F", "#0F3FF0", "#F0F50F",
+                   "#A98765", "#0152A3", "#0FAAF0",
                    "#C0110C", "#0B0D0E", "#BDC0EB"]
 
 # Set the font size of the plots
@@ -38,6 +50,18 @@ _plt.rcParams.update({"font.size": plot_font_size})
 # The figure size (in inches) of some functions
 plot_figure_size = (7, 7)
 
+# Determines the notation used for the abundance
+_LOG_ABUND_CONV = "\\log A"
+
+def _log_abund_str(value):
+    """
+    Returns a string stating what the abundance is
+    """
+    
+#    value = "{:0.3f}".format(value)
+    value = str(value)
+    return "$" + _LOG_ABUND_CONV + "=" + value + "$"
+
 def estimate_minimum(wav, inten, num = 1000):
     """
     Estimates the minimum intensity using quadratic interpolation. The optional argument is
@@ -50,29 +74,6 @@ def estimate_minimum(wav, inten, num = 1000):
     wav = np.linspace(wav[0], wav[-1], num = 1000)
     inten = si.splev(wav, tck)
     return wav[inten == min(inten)][0]
-
-def plot_stuff(result_pair):
-    """
-    This function plots arbitrary stuff. It is not always constant what it does, since
-    it might be edited. It takes a single argument
-    
-        result_pair : An instance of ResultPair that contains the result of a calculation.
-    """
-    
-    result = result_pair.result_chi
-    data = zip(result.best_abunds, [r.best_shift for r in result.region_result])
-    data = sorted(data, key = lambda x: x[1])
-    abunds, best_shifts = map(np.array, zip(*data))
-    
-    _plt.figure(figsize=(5,4))
-#    xticks = _plt.xticks()[0]
-    _plt.plot(abunds, best_shifts, ".")
-#    _plt.yticks([0,1,2,3,4])
-    _plt.xlabel(u"$\\log A_{Fe}$")
-    _plt.ylabel(u"Shift [Å]")
-    _plt.tight_layout()
-    _plt.show()
-
 
 def _calc_ticks(ticks, values):
     if isinstance(ticks, int):
@@ -100,6 +101,24 @@ def partial(func, *args, **kwargs):
         return func(*argums, **keywargs)
     return partial_application
 
+def figured(plotting_func, *fig_args, **fig_kwargs):
+    """
+    Returns a function that creates a figure with the given arguments and then calls
+    the given plotting functions. The required argument is
+    
+        plotting_func : A function that plots something.
+    
+    All other arguments to this functions are arguments to the figure, specifically they
+    are passed on to matplotlib.pyplot.figure.
+    
+    Any arguments given to the returned function are passed on to plotting_func.
+    """
+    
+    def plotter(*args, **kwargs):
+        _plt.figure(*fig_args, **fig_kwargs)
+        plotting_func(*args, **kwargs)
+    return plotter
+
 def _set_title(ax, title):
     """
     Sets the title, and makes sure the font size is correct
@@ -120,26 +139,24 @@ def _get_figure_axes(figure_axes):
         figure_axes = _plt.gca()
     return figure_axes
 
-def _adjust_xticks(ax, adjustment, limits = None):
-    # Get the x ticks
-    xticks = ax.get_xticks()
-    
-    # Adjust the x ticks
-    if isinstance(adjustment, int) and adjustment > 0:
+def _adjust_ticks(setter, ax, ticks, curr_ticks, limits, error_message):
+    if isinstance(ticks, int) and ticks > 0:
         if None == limits:
-            limits = (xticks[0], xticks[-1])
-        ax.set_xticks(np.linspace(limits[0], limits[1], num = adjustment))
-    elif hasattr(adjustment, "__call__"):
-        # Get the x ticks
-        xticks = ax.get_xticks()
+            limits = (curr_ticks[0], curr_ticks[-1])
+        setter(np.linspace(limits[0], limits[1], num = ticks))
+    elif hasattr(ticks, "__call__"):
         if None != limits:
-            xticks = xticks[(limits[0] <= xticks) & (xticks <= limits[1])]
-        ax.set_xticks(adjustment(xticks))
-    elif None != adjustment:
+            curr_ticks = curr_ticks[(limits[0] <= curr_ticks) & (curr_ticks <= limits[1])]
+        setter(ticks(curr_ticks))
+    elif None != ticks:
         try:
-            ax.set_xticks(adjustment)
+            setter(ticks)
         except:
-            raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer, a function or a list of xticks to use, but it had type " + type(adjustment).__name__ + " and value " + str(adjustment))
+            raise Exception(error_message(ticks))
+
+def _adjust_xyticks(ax, xticks, yticks, xlimits = None, ylimits = None):
+    _adjust_ticks(ax.set_xticks, ax, xticks, ax.get_xticks(), xlimits, lambda ticks: "Illegal value for argument 'xticks'. It must be None, a positive integer, a function or a list of xticks to use, but it had type " + type(ticks).__name__ + " and value " + str(ticks))
+    _adjust_ticks(ax.set_yticks, ax, yticks, ax.get_yticks(), ylimits, lambda ticks: "Illegal value for argument 'yticks'. It must be None, a positive integer, a function or a list of yticks to use, but it had type " + type(ticks).__name__ + " and value " + str(ticks))
 
 def _filter_abund(abund_filter, abund, inten):
     """
@@ -158,7 +175,7 @@ def _filter_abund(abund_filter, abund, inten):
         else:
             abund = abund[abund_filter]
             inten = inten[abund_filter]
-    return inten
+    return abund, inten
 
 def plot_compared(region_result, show_labels = True, abund_filter = None, figure_axes = None):
     """
@@ -241,7 +258,7 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     if figure_axes == None:
         _plt.show()
 
-def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xlim = None, ylim = None, figure_axes = None, xticks_adjust = None):
+def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xlim = None, ylim = None, xticks = None, yticks = None, figure_axes = None):
     """
     """
     
@@ -252,29 +269,34 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
     wav = region_result.wav
     
     # Make sure entire y scale is shown
-    ax.set_xlim([wav[0], wav[-1]])
-    ax.set_ylim([0, 1.1])
+#    ax.set_xlim([wav[0], wav[-1]])
+#    ax.set_ylim([0, 1.1])
     
     # Plot the unshifted, shifted and observed spectrums
+    lbl_obs = ax.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "FTS atlas")
     lbl_best = ax.plot(wav, region_result.best_inten, color = "red", label = "Shifted")
     lbl_shifted = ax.plot(wav + region_result.best_shift, region_result.best_inten, color = "red", linestyle = "--", label = "Original")
-    lbl_obs = ax.plot(region_result.region.wav, region_result.region.inten, color = "blue", label = "FTS atlas")
 
     # Set the formatter
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
-    # Adjust the x ticks
-    _adjust_xticks(ax, xticks_adjust, limits = (wav[0], wav[-1]))
+    # Make sure there are always limits
+    if None == xlim:
+        xlim = (min(wav[0], region_result.region.wav[0]), max(wav[-1], region_result.region.wav[-1]))
+    if None == ylim:
+        ylim = (0.0, 1.1)
     
-    if None != xlim:
-        ax.set_xlim(xlim)
-    if None != ylim:
-        ax.set_ylim(ylim)
+    # Adjust the x ticks
+    _adjust_xyticks(ax, xticks, yticks, xlimits = xlim, ylimits = ylim)
+    
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
-        ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = 8)
+        ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = 8, frameon = False)
     if figure_axes == None:
         _plt.tight_layout()
         _plt.show()
@@ -343,7 +365,7 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
         _plt.tight_layout()
         _plt.show()
 
-def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, figure_axes = None, xticks_adjust = None):
+def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xticks = None, yticks = None, xlim = None, ylim = None, figure_axes = None):
     """
     Plots the given region result.
 
@@ -352,60 +374,73 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
                         
     The optional arguments are
 
-        offset        : Determines the offset of the synthetic region. Specifically, it shifts the synthetic data.
-                        Default is 0.
+        offset       : Determines the offset of the synthetic region. Specifically, it shifts the synthetic data.
+                       Default is 0.
         
-        show_abunds   : Determines if the synthetic data for other abundances then the best abundance should be shown. If set to True,
-                        the abundance filter can be used to select specific abundances to show or not. The abundance filter is given
-                        through abund_filter.
-                        Default is False.
+        show_abunds  : Determines if the synthetic data for other abundances then the best abundance should be shown. If set to True,
+                       the abundance filter can be used to select specific abundances to show or not. The abundance filter is given
+                       through abund_filter.
+                       Default is False.
         
-        show_labels   : Determines if the labels for the axes should be shown or not.
-                        Default is True.
+        show_labels  : Determines if the labels for the axes should be shown or not.
+                       Default is True.
         
-        show_legend   : Determines if the legend should be shown.
-                        Default is True.
+        show_legend  : Determines if the legend should be shown.
+                       Default is True.
         
-        legend_pos    : Determines the position of the legend, if it is shown. Valid values are
+        legend_pos   : Determines the position of the legend, if it is shown. Valid values are
+                       
+                           0  : best
+                           1  : upper right
+                           2  : upper left
+                           3  : lower left
+                           4  : lower right
+                           5  : right
+                           6  : center left
+                           7  : center right
+                           8  : lower center
+                           9  : upper center
+                           10 : center
+                       
+                       Alternatively a 2 element tuple can be used to specify the x and y position (first element
+                       is x, second element is y) of the lower left corner of the legend. This position has to be
+                       in the coordinates of the plot, so x is wavelength and y is the normalized intensity.
+                       Default is 4.
                         
-                            0  : best
-                            1  : upper right
-                            2  : upper left
-                            3  : lower left
-                            4  : lower right
-                            5  : right
-                            6  : center left
-                            7  : center right
-                            8  : lower center
-                            9  : upper center
-                            10 : center
-                        
-                        Alternatively a 2 element tuple can be used to specify the x and y position (first element
-                        is x, second element is y) of the lower left corner of the legend. This position has to be
-                        in the coordinates of the plot, so x is wavelength and y is the normalized intensity.
-                        Default is 4.
-                        
-        obs_pad       : The padding of the observed data. Specifically, it can be used to show observed data from outside of the
-                        region. A positive value expands the observed region shown while a negative value decreases it.
-                        Default is 0.
+        obs_pad      : The padding of the observed data. Specifically, it can be used to show observed data from outside of the
+                       region. A positive value expands the observed region shown while a negative value decreases it.
+                       Default is 0.
         
-        abund_filter  : A filter that determines which abundances should be shown. It can be None, a function of anything that a numpy
-                        array can be indexed or sliced with. If it is None, nothing is filtered out. If it is a function, it is expected
-                        to take 3 arguments. The first is the abundance index, the second is the abundance and the third is the synthetic
-                        intensities for that abundance.
-                        Default is None.
+        abund_filter : A filter that determines which abundances should be shown. It can be None, a function of anything that a numpy
+                       array can be indexed or sliced with. If it is None, nothing is filtered out. If it is a function, it is expected
+                       to take 3 arguments. The first is the abundance index, the second is the abundance and the third is the synthetic
+                       intensities for that abundance.
+                       Default is None.
         
-        figure_axes   : Sets the axes object. If this is None, then the result of
-                        matplotlib.pyplot.gca() will be used. And if this is not None
-                        then it will be used to plot the abundance. Also note that
-                        if this is not None, the plot will not be shown implicitly.
-                        Thereby this can be used to have several plots in the same figure.
-                        Default is None.
+        xticks       : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
         
-        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
-                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
-                        array of filtered ticks. And if None is used, nothing will happen.
-                        Default is None.
+        yticks       : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
+        
+        xlim         : Sets the limits of the x axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                       the first element in the tuple is the minimum x value shown and the second element is the maximum x value shown.
+                       Default is None.
+        
+        ylim         : Sets the limits of the y axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                       the first element in the tuple is the minimum y value shown and the second element is the maximum y value shown.
+                       Default is None.
+        
+        figure_axes  : Sets the axes object. If this is None, then the result of
+                       matplotlib.pyplot.gca() will be used. And if this is not None
+                       then it will be used to plot the abundance. Also note that
+                       if this is not None, the plot will not be shown implicitly.
+                       Thereby this can be used to have several plots in the same figure.
+                       Default is None.
     """
     
     # Get the axes object
@@ -422,24 +457,7 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     
     # List of the legend labels
     legend_labels = []
-
-    # Plot the synthetic spectrum
-    if show_abunds:
     
-        # Get the intensities for the filtered (or unfiltered) abundances
-        abund, inten = _filter_abund(abund_filter, region_result.abund, region_result.inten)
-        
-        # Plot the intensities for the chosen abundances       
-        for a in range(inten.shape[0]):
-            # Plot everything but the best abundance
-            if not np.all(inten[a] == region_result.best_inten):
-                lbl = ax.plot(wav - offset, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.75, label = "$\\log A_{Fe} = " + str(abund[a]) + "$")
-                legend_labels.append(lbl[0])
-    
-    # Plot the best abundance
-    lbl_best = ax.plot(wav - offset, region_result.best_inten, color = "red", label = "$\\log A_{Fe} = " + str(region_result.best_abund) + "$")
-    legend_labels.append(lbl_best[0])
-
     # Get the observed spectrum contained in the region
     if obs_pad == (0.0, 0.0):
         rwav = region_result.region.wav
@@ -454,27 +472,41 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     
     # Plot the observed spectrum, followed by the synth lines
     lbl_obs = ax.plot(rwav, rinten, color = "blue", label = "FTS atlas")
+
+    # Plot the synthetic spectrum
+    if show_abunds:
+    
+        # Get the intensities for the filtered (or unfiltered) abundances
+        abund, inten = _filter_abund(abund_filter, region_result.abund, region_result.inten)
+        
+        # Plot the intensities for the chosen abundances       
+        for a in range(inten.shape[0]):
+            # Plot everything but the best abundance
+            if not np.all(inten[a] == region_result.best_inten):
+                lbl = ax.plot(wav - offset, inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.75, label = _log_abund_str(abund[a]), linestyle = "--")
+                legend_labels.append(lbl[0])
+    
+    # Plot the best abundance
+    lbl_best = ax.plot(wav - offset, region_result.best_inten, color = "red", label = _log_abund_str(region_result.best_abund))
+    legend_labels.append(lbl_best[0])
+    
     legend_labels.append(lbl_obs[0])
     
     # Set the formatter
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
+    # Make sure there are always limits
+    if None == xlim:
+        xlim = (min(wav[0], rwav[0]), max(wav[-1], rwav[-1]))
+    if None == ylim:
+        ylim = (0.0, 1.1)
+    
     # Adjust the x ticks
-#    if isinstance(xticks_adjust, int) and xticks_adjust > 0:
-#        xticks = ax.get_xticks()
-#        ax.set_xticks(np.linspace(xticks[0], xticks[-1], num = xticks_adjust))
-#    elif hasattr(xticks_adjust, "__call__"):
-#        xticks = ax.get_xticks()
-#        ax.set_xticks(xticks_adjust(xticks))
-#    elif xticks_adjust != None:
-#        raise Exception("Illegal value for xticks_adjust. It must be None, a positive integer or a function, but it had type " + type(xticks_adjust) + " and value " + str(xticks_adjust))
-    xlimits = (min(wav[0], rwav[0]), max(wav[-1], rwav[-1]))
-    print("xlimits =", xlimits)
-    _adjust_xticks(ax, xticks_adjust, limits = xlimits)
+    _adjust_xyticks(ax, xticks, yticks, xlimits = xlim, ylimits = ylim)
 
     # Make sure entire y scale is shown
-    ax.set_xlim(xlimits)
-    ax.set_ylim([0, 1.1])
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
@@ -542,7 +574,7 @@ def plot_spec(region_results, show_observed = True, show_continuum = False, show
     _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
     _plt.show()
 
-def plot_vs(func, xlabel = None, ylabel = None, xticks_adjust = None, xlim = None, ylim = None):
+def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xlim = None, ylim = None):
     """
     Creates a function that plots two quantities derived from a region result object, such as an instance of
     ChiRegionResult or EWRegionResult, against each other. The created function is returned. The required
@@ -554,22 +586,27 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks_adjust = None, xlim = Non
 
     The optional arguments are
     
-        xlabel        : The label of the x axis. If this argument is None, the y axis will not have a label.
-                        Default is None.
+        xlabel : The label of the x axis. If this argument is None, the y axis will not have a label.
+                 Default is None.
     
-        ylabel        : The label of the y axis. If this argument is None, the y axis will not have a label.
-                        Default is None.
+        ylabel : The label of the y axis. If this argument is None, the y axis will not have a label.
+                 Default is None.
         
-        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
-                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
-                        array of filtered ticks. And if None is used, nothing will happen.
-                        Default is None.
+        xticks : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                 ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                 array of filtered ticks. And if None is used, nothing will happen.
+                 Default is None.
         
-        xlim          : Sets the limits of the x axis. If this is None, no limit is set.
-                        Default is None.
+        yticks : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                 ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                 array of filtered ticks. And if None is used, nothing will happen.
+                 Default is None.
         
-        ylim          : Sets the limits of the y axis. If this is None, no limit is set.
-                        Default is None.
+        xlim   : Sets the limits of the x axis. If this is None, no limit is set.
+                 Default is None.
+        
+        ylim   : Sets the limits of the y axis. If this is None, no limit is set.
+                 Default is None.
     
     The returned function has a single required argument, namely
 
@@ -592,8 +629,10 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks_adjust = None, xlim = Non
         x, y = func(region_result)
         ax.plot(x, y)
         
-        # Adjust the x ticks
-        _adjust_xticks(ax, xticks_adjust)
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+        
+        # Adjust the ticks for the x and y axes
+        _adjust_xyticks(ax, xticks, yticks)
         
         if xlim != None:
             ax.set_xlim(xlim)
@@ -607,7 +646,7 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks_adjust = None, xlim = Non
             _plt.show()
     return plotting_func
 
-def plot_vs_abund(abund, values, ylabel = None, figure_axes = None, xticks_adjust = None):
+def plot_vs_abund(abund, values, ylabel = None, xticks = None, yticks = None, figure_axes = None):
     """
     Plots a quantity against the abundance. The required arguments are
 
@@ -621,17 +660,22 @@ def plot_vs_abund(abund, values, ylabel = None, figure_axes = None, xticks_adjus
         ylabel      : The label of the y axis. If this argument is None, the y axis will not have a label.
                       Default is None.
         
+        xticks      : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                      ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                      array of filtered ticks. And if None is used, nothing will happen.
+                      Default is None.
+        
+        yticks      : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                      ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                      array of filtered ticks. And if None is used, nothing will happen.
+                      Default is None.
+        
         figure_axes : Sets the axes object. If this is None, then the result of
                       matplotlib.pyplot.gca() will be used. And if this is not None
                       then it will be used to plot the abundance. Also note that
                       if this is not None, the plot will not be shown implicitly.
                       Thereby this can be used to have several plots in the same figure.
                       Default is None.
-        
-        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
-                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
-                        array of filtered ticks. And if None is used, nothing will happen.
-                        Default is None.
     """
     
     # Get the axes object
@@ -640,7 +684,7 @@ def plot_vs_abund(abund, values, ylabel = None, figure_axes = None, xticks_adjus
     ax.plot(abund, values)
     
     # Adjust the x ticks
-    _adjust_xticks(ax, xticks_adjust)
+    _adjust_xyticks(ax, xticks, yticks)
     
     ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
     if ylabel != None:
@@ -648,7 +692,7 @@ def plot_vs_abund(abund, values, ylabel = None, figure_axes = None, xticks_adjus
     if figure_axes == None:
         _plt.show()
 
-def plot_chisq(region_result, figure_axes = None, xticks_adjust = None):
+def plot_chisq(region_result, xticks = None, yticks = None, figure_axes = None):
     """
     Plots chi squared for the given region result vs the abundance. The required argument is
 
@@ -657,22 +701,27 @@ def plot_chisq(region_result, figure_axes = None, xticks_adjust = None):
     
     The optional argument is
     
-        figure_axes   : Sets the axes object. If this is None, then the result of
-                        matplotlib.pyplot.gca() will be used. And if this is not None
-                        then it will be used to plot the abundance. Also note that
-                        if this is not None, the plot will not be shown implicitly.
-                        Thereby this can be used to have several plots in the same figure.
-                        Default is None.
-        
-        xticks_adjust : Adjusts the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
-                        ticks should be used. If, on the other hand, this is a function then it will take the array of ticks and return a new
-                        array of filtered ticks. And if None is used, nothing will happen.
-                        Default is None.
+        xticks      : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                      ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                      array of filtered ticks. And if None is used, nothing will happen.
+                      Default is None.
+    
+        yticks      : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                      ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                      array of filtered ticks. And if None is used, nothing will happen.
+                      Default is None.
+    
+        figure_axes : Sets the axes object. If this is None, then the result of
+                      matplotlib.pyplot.gca() will be used. And if this is not None
+                      then it will be used to plot the abundance. Also note that
+                      if this is not None, the plot will not be shown implicitly.
+                      Thereby this can be used to have several plots in the same figure.
+                      Default is None.
     """
         
-    plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$", figure_axes = figure_axes, xticks_adjust = xticks_adjust)
+    plot_vs_abund(region_result.abund, region_result.chisq, ylabel = "$\\chi^2$", xticks = xticks, yticks = yticks, figure_axes = figure_axes)
 
-def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = True, show_observed = True, show_synth = True, show_labels = True, only_best_synth = False, num = 50, figure_axes = None):
+def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = False, show_labels = True, abund_filter = None, num = 50, xticks = None, yticks = None, xlim = None, ylim = None, figure_axes = None):
     """
     Plots the bisector of the given region result. It is possible to plot this for both synthetic and observed data. By default both are shown.
 
@@ -680,70 +729,103 @@ def plot_bisect(region_result, offset = 0.0, plot_observed = True, plot_synth = 
         
     The optional arguments are
 
-        offset          : Offsets the synthetic spectrum. Positive values offsets it to the right while negative to the left.
-                          Default is 0.
+        offset        : Offsets the synthetic spectrum. Positive values offsets it to the right while negative to the left.
+                        Default is 0.
         
-        plot_observed   : Determines if the bisector of the observed spectrum should be shown.
-                          Default is True.
+        show_observed : Determines if the observed spectrum and its bisector should be shown.
+                        Default is True.
         
-        plot_synth      : Determines if the bisector of the synthetic spectrum should be shown.
-                          Default is True.
+        show_synth    : Determines if the synthetic spectrum and its bisector should be shown.
+                        Default is False.
         
-        show_observed   : Determines if the observed spectrum should be shown.
-                          Default is True.
+        show_labels   : Determines if the axis labels should be shown.
+                        Default is True.
         
-        show_synth      : Determines if the synthetic spectrum should be shown.
-                          Default is True.
+        abund_filter  : A filter used to select the abundances to be shown. If None only the synthetic line corresponding to the best fit
+                        abundance is used. If it is an integer, numpy array, list or any other collection, it contains the index or indices
+                        of the abundances to show.
+                        Default is True.
         
-        show_labels     : Determines if the axis labels should be shown.
-                          Default is True.
+        num           : The amount of points for which the bisector should be calculated.
+                        Default is 50.
         
-        only_best_synth : Determines if only the best fit synthetic spectrum should be shown.
-                          Default is False.
+        xticks        : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
+    
+        yticks        : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                        ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                        array of filtered ticks. And if None is used, nothing will happen.
+                        Default is None.
         
-        num             : The amount of points for which the bisector should be calculated.
-                          Default is 50.
+        xlim          : Sets the limits of the x axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                        the first element in the tuple is the minimum x value shown and the second element is the maximum x value shown.
+                        Default is None.
         
-        figure_axes     : Sets the axes object. If this is None, then the result of
-                          matplotlib.pyplot.gca() will be used. And if this is not None
-                          then it will be used to plot the abundance. Also note that
-                          if this is not None, the plot will not be shown implicitly.
-                          Thereby this can be used to have several plots in the same figure.
-                          Default is None.
+        ylim          : Sets the limits of the y axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                        the first element in the tuple is the minimum y value shown and the second element is the maximum y value shown.
+                        Default is None.
+        
+        figure_axes   : Sets the axes object. If this is None, then the result of
+                        matplotlib.pyplot.gca() will be used. And if this is not None
+                        then it will be used to plot the abundance. Also note that
+                        if this is not None, the plot will not be shown implicitly.
+                        Thereby this can be used to have several plots in the same figure.
+                        Default is None.
     
     Note that at least one of plot_observed or plot_synth must be true. Otherwise an exception is raised.
     """
     
-    if not (plot_observed or plot_synth):
+    if not (show_observed or show_synth):
         print("Must plot something")
 
     ax = _get_figure_axes(figure_axes)
+    
+    #
+    min_inten_val = np.inf
 
     # Plot the bisector of the synthetic data    
-    if plot_synth:
+    if show_synth:
         # Get the wavelengths
         rwav = region_result.wav
-        if only_best_synth:
+        if None == abund_filter:
             rinten_all = [region_result.best_inten]
+        elif isinstance(abund_filter, (int, long)):
+            rinten_all = [region_result.inten[abund_filter]]
         else:
-            rinten_all = region_result.inten
+            rinten_all = [inten for i, inten in enumerate(region_result.inten) if i in abund_filter]
         
         # Plot the bisectors
         for a, rinten in enumerate(rinten_all):
             bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
-            if show_synth:
-                ax.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
+            ax.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
             ax.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
     
     # Plot the bisector of the observed data
-    if plot_observed:
+    if show_observed:
         rwav = region_result.region.wav
         rinten = region_result.region.inten
         bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
-        if show_observed:
-            ax.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
+        ax.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
         ax.plot(bwav, binten, color = "blue")
 
+    # Set the formatter
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+
+    # Make sure there are always limits
+    if None == xlim:
+        xlim = (min(region_result.wav[0], region_result.region.wav[0]), max(region_result.wav[-1], region_result.region.wav[-1]))
+    if None == ylim:
+        ylim = (0.0, 1.1)
+
+    # Adjust the x ticks
+    _adjust_xyticks(ax, xticks, yticks, xlimits = xlim, ylimits = ylim)
+
+    # Make sure everything is properly shown
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
@@ -1084,6 +1166,18 @@ def plot_row(obj, plot_funcs, titles = None, figsize = None):
     _plt.tight_layout()
     _plt.show()
 
+def _hide(ax):
+    """
+    Hides an axes object.
+    """
+    invisible = matplotlib.colors.colorConverter.to_rgba("#FFFFFF", alpha = 0.0)
+    ax.set_axis_bgcolor(invisible)
+    ax.spines["top"].set_color("none")
+    ax.spines["bottom"].set_color("none")
+    ax.spines["left"].set_color("none")
+    ax.spines["right"].set_color("none")
+    ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
+    
 def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
     """
     Plots the given list of objects in a grid with the given amount of rows and columns, using the given plotting
@@ -1126,13 +1220,7 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
         plot_func(ax, obj)
 
     # Hide the "main subplot", except for the labels on the x and y axes
-    invisible = matplotlib.colors.colorConverter.to_rgba("#FFFFFF", alpha = 0.0)
-    main_ax.set_axis_bgcolor(invisible)
-    main_ax.spines["top"].set_color("none")
-    main_ax.spines["bottom"].set_color("none")
-    main_ax.spines["left"].set_color("none")
-    main_ax.spines["right"].set_color("none")
-    main_ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
+    _hide(main_ax)
     
     # Set the x and y labels
     if xlabel != None:
@@ -1227,6 +1315,11 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
         if ylim != None:
             ax.set_ylim(ylim)
         plot_func(obj, *args, figure_axes = ax, **kwargs)
+    
+    # If now all cells where used, hide the rest
+    if i < len(axes) - 1:
+        for a in axes[i+1:]:
+            _hide(a)
 
     # Show the plot
     fig.tight_layout()
