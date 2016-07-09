@@ -43,11 +43,22 @@ def plot_stuff(result_pair):
         pltchisq = plot_vs(lambda r: (r.shift_all, r.chisq_all[r.best_index]), xlabel = u"Shift [Å]", ylabel = "$\\chi^2$", xlim = (-0.10, 0.10))
         plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
     
-    # *** Plots several abundances for a region and how chi squared changes with abundance, for that region
+    # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5778 Å
     if False:
         pltshift = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59), ylim = (0.3, 1.1))
         pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
         plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
+    
+    # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5232 Å
+    if False:
+        pltshift = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xlim = (5232.17, 5234.16), xticks = 3)
+        pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
+        plot_row(result_chi.region_result[-1], [pltshift, pltchisq], figsize = (6, 3))
+    
+    # *** Plots a close up on what happens for different abundances for the strong line at approximately 5232 Å
+    if True:
+        _plt.figure(figsize = (6,3.5))
+        plot_region(result_chi.region_result[-1], show_abunds = True, abund_filter = [0, 58, 201, 309, 499], xlim = (5232.89, 5233.01), ylim = (0.165, 0.192))
     
     # *** Histogram over the distribution of best shifts among the results from the regions
     # Using the inbuilt histogram plotting function
@@ -95,9 +106,43 @@ def plot_stuff(result_pair):
         plot_region(result_chi.region_result[5], obs_last = True, xticks = 7)
     
     # *** Plots the line at approximately 5705 Å
-    if True:
+    if False:
         _plt.figure(figsize = (6,3))
         plot_region(result_chi.region_result[11], obs_last = True, xticks = 7)
+    
+    # *** Plots the first 8 lines together
+    if False:
+        plot_mosaic(result_chi.region_result[:8], 4, 2, partial(plot_region, xticks = 3), figsize = (6,9))
+    
+    # *** Plots the rest of the lines together
+    if False:
+        def plotfunc(region_result, figure_axes = None):
+            #if np.array_equal(region_result.region.wav, result_chi.region_result[-1].region.wav):
+            if region_result is result_chi.region_result[-1]:
+                plot_region(region_result, xticks = 3, xlim = (5232.13, 5234.12), figure_axes = figure_axes)
+            else:
+                plot_region(region_result, xticks = 3, figure_axes = figure_axes)
+        plot_mosaic(result_chi.region_result[8:], 4, 2, plotfunc, figsize = (6,9))
+    
+    # *** Plots the bisector of the line at approximately 6302 Å (both for the observed and synthetic spectra)
+    if False:
+        regres = result_chi.region_result[1]
+        f, ax = _plt.subplots(nrows = 1, ncols = 2, figsize = (6,3))
+        plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", figure_axes = ax[0], color = "blue")
+        plot_bisector(regres.wav, regres.best_inten, xy_args = options(color = "red"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", figure_axes = ax[1], color = "red")
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Plots the bisector of the line at approximately 6302 Å (only for the observed spectra)
+    if False:
+        line_nr = 1
+        rwav = result_chi.region_result[line_nr].region.wav
+        rinten = result_chi.region_result[line_nr].region.inten
+        f, ax = _plt.subplots(nrows = 1, ncols = 2, figsize = (6,3))
+        plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (rwav[0], rwav[-1]), ylim = (0.0, 1.1), figure_axes = ax[0], color = "blue")
+        plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), figure_axes = ax[1], color = "blue")
+        _plt.tight_layout()
+        _plt.show()
     
     # *** 
     if False:
@@ -252,6 +297,126 @@ def _filter_abund(abund_filter, abund, inten):
             abund = abund[abund_filter]
             inten = inten[abund_filter]
     return abund, inten
+
+def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, ylim = None, xlabel = None, ylabel = None, xfmt = None, yfmt = None, plot_values = True, xy_args = None, show = True, figure_axes = None, **kwargs):
+    """
+    Plots a bisector given by x and y. Required arguments
+    
+        x : The x values.
+        
+        y : The y values.
+    
+    The optional arguments are
+    
+        num          : The number of points in the bisector.
+                       Default is 50.
+        
+        xticks       : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
+        
+        yticks       : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
+        
+        xlim         : Sets the limits of the x axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                       the first element in the tuple is the minimum x value shown and the second element is the maximum x value shown.
+                       Default is None.
+        
+        ylim         : Sets the limits of the y axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
+                       the first element in the tuple is the minimum y value shown and the second element is the maximum y value shown.
+                       Default is None.
+        
+        xlabel       : If not None, sets the label of the x axis.
+                       Default is None.
+        
+        ylabel       : If not None, sets the label of the y axis.
+                       Default is None.
+        
+        xfmt         : If not None, sets how the numbers on the x axis are formatted. This is expected to be a string that is given to a
+                       matplotlib.ticker.FormatStrFormatter object. See matplotlib.ticker.FormatStrFormatter for more information about how this
+                       works.
+                       Default is None.
+        
+        yfmt         : If not None, sets how the numbers on the y axis are formatted. This is expected to be a string that is given to a
+                       matplotlib.ticker.FormatStrFormatter object. See matplotlib.ticker.FormatStrFormatter for more information about how this
+                       works.
+                       Default is None.
+        
+        plot_values  : Determines if the x and y values should be plotted as well as the bisector. True means they are plotted, False that they
+                       are not.
+                       Default is True.
+        
+        xy_args      : If not None, this contains the arguments for the plot of the values. Specifically it is a tuple with 2 elements. The first
+                       element is a list and the second a dict. These are the arguments passed on to the function call that plots the x and y values,
+                       if plot_values is set to True. If plot_values is False, this argument does nothing.
+                       Default is None.
+        
+        show         : Determines, assuming figure_axes is None, if the plot should be shown directly. If figure_axes is None, the plot is never
+                       shown directly.
+                       Default is True.
+        
+        figure_axes  : Sets the axes object. If this is None, then the result of matplotlib.pyplot.gca() will be used. And if this is not None
+                       then it will be used to plot the abundance. Also note that if this is not None, the plot will not be shown implicitly. Thereby
+                       this can be used to have several plots in the same figure.
+                       Default is None.
+    
+    Any additional keyword arguments are passed on to matplotlib.pyplot.plot.
+    
+    By default, if the plot_values is True, then the plotted x and y values will have the line style "--". This can be set using the xy_args argument.
+    
+    The return value is a list of the lines that where added.
+    """
+    
+    # If no axes object was given, get the current one from _plt
+    if figure_axes == None:
+        ax = _plt.gca()
+    else:
+        ax = figure_axes
+
+    # Plot the bisector    
+    bx, by = bisect.get_bisector(x, y, num = num)
+    if plot_values:
+        if xy_args != None:
+            args_vals, kwargs_vals = xy_args
+            if "linestyle" not in kwargs_vals:
+                kwargs_vals["linestyle"] = "--"
+            plotted = ax.plot(x, y, *args_vals, **kwargs_vals)
+        else:
+            plotted = ax.plot(x, y, linestyle = "--")
+        plotted_bisect = ax.plot(bx, by, **kwargs)
+        plotted.extend(plotted_bisect)
+    else:
+        plotted = ax.plot(bx, by, **kwargs)
+
+    # Set the formattings of the x and y axis
+    if xfmt != None:
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter(xfmt))
+    if yfmt != None:
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter(yfmt))
+    
+    # Adjust the ticks for the x and y axes
+    _adjust_xyticks(ax, xticks, yticks, xlimits = xlim, ylimits = ylim)
+    
+    # Set the limits and labels
+    if xlim != None:
+        ax.set_xlim(xlim)
+    if ylim != None:
+        ax.set_ylim(ylim)
+    if xlabel != None:
+        ax.set_xlabel(xlabel)
+    if ylabel != None:
+        ax.set_ylabel(ylabel)
+
+    # If show is true and no axis object was given, show the plot    
+    if show and figure_axes == None:
+        _plt.tight_layout()
+        _plt.show()
+    
+    # Return the plotted lines
+    return plotted
 
 def plot_compared(region_result, show_labels = True, abund_filter = None, figure_axes = None):
     """
