@@ -444,12 +444,12 @@ class EWRegionResult(object):
 
     def minimized_quantity(self):
         """
-        Returns the best value of the quantity, in this case the difference in equivalent width between the synthetic
-        and observed lines, that was minimized in order to fit the synthetic spectrum to the observed spectrum for
-        this region. 
+        Returns the best value of the quantity, in this case absolute value of the difference in equivalent width between
+        the synthetic and observed lines, that was minimized in order to fit the synthetic spectrum to the observed spectrum
+        for this region.
         """
         
-        return self.best_diff
+        return abs(self.best_diff)
 
     def _fuse_result(self, other):
         """

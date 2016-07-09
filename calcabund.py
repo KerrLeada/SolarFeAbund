@@ -9,14 +9,13 @@ import time
 import satlas as sa
 import sparsetools as sp
 import regions as regs
-import cfg
-import fitting
 import astropy.constants
 import astropy.units
 import synther
 import regfile
 import plotting
 import latexgen
+import dispresult
 from plotting import plot_in, plot_around
 
 # Used to quickly switch code
@@ -106,47 +105,15 @@ finally:
 result_chi = result.result_chi
 result_ew = result.result_ew
 
-def _calc_vel(delta_lambda, lambda_em):
-    """
-    Calculates the velocity that corresponds to a doppler shift
-    with a given shift delta_lambda and an emitted wavelength lambda_em.
-    """
-    
-    return delta_lambda*300000.0/lambda_em
-
+def display():
+    dispresult.display(result)
 def print_best():
-    # Print the results for each region
-    for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result):
-        lambda_em = r_chi.wav[np.argmin(r_chi.inten[r_chi.best_index])]
-        print("Region:", r_chi.region)
-        print("    Chi squared method:")
-        print("        Best chisq:", r_chi.best_chisq)
-        print("        Best shift:", r_chi.best_shift)
-        print("        Best abund:", r_chi.best_abund)
-        print("        Velocity: ~", _calc_vel(r_chi.best_shift, lambda_em), "     ( Using delta_lambda =", r_chi.best_shift, "lambda_em =", lambda_em, ")")
-        print("    Equivalent widths:")
-        print("        Best eq width:", r_ew.best_eq_width)
-        print("        Obs eq width: ", r_ew.obs_eq_width)
-        print("        Best diff:    ", r_ew.best_diff)
-        print("        Best abund:   ", r_ew.best_abund)
-        print("")
-    
-    # Print the final results
-    for result, method in [(result_chi, "chi squared"), (result_ew, "equivalent widths")]:
-        print("Result using", method, "yields:")
-        print("    Best abunds:", result.best_abunds)
-        print("    Min abund: ", min(result.best_abunds), "     or:", min(result.best_abunds) + 12.0, " (as 12 + min abund)")
-        print("    Max abund: ", max(result.best_abunds), "     or:", max(result.best_abunds) + 12.0, " (as 12 + max abund)")
-        print("    Mean abund:", result.abund, "+-", result.error_abund, "     or:", result.abund + 12.0, "+-", result.error_abund, " (as 12 + mean abund)")
+    dispresult.print_best(result)
 if _MODE_PRINT_BEST:
     print_best()
 
 def plot_region(region_nr, **kwargs):
     plotting.plot_region(result_chi.region_result[region_nr], **kwargs)
-
-#def plot_spec(show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
-#    # Set the title to display the mode and if the spacing between the datapoints in the synth region was fitted
-#    plotting.plot_spec(result_chi.region_result, show_observed = show_observed, show_continuum = show_continuum, show_unshifted = show_unshifted, padding = padding, cgs = cgs)
 
 def plot_chisq(region_nr):
     regres = result_chi.region_result[region_nr]

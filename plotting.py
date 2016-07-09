@@ -25,9 +25,84 @@ def plot_stuff(result_pair):
         result_pair : An instance of ResultPair that contains the result of a calculation.
     """
     
-    result = result_pair.result_chi
-    region_result = result.region_result
-    plot_row(region_result[14], [partial(plot_region, show_abunds = True, abund_filter = [127, 350, 490], xticks = 4), plot_vs(lambda r: (r.abund, r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xticks = [-4.7, -4.43333333, -4.56666667, -4.3])], figsize = (7,3.5))
+    result_chi = result_pair.result_chi
+    result_ew = result_pair.result_ew
+    regions = [r.region for r in result_chi.region_result]
+    
+    # *** Plot the mosaic of the observed lines in the regions
+    if False:
+        plot_region_mosaic(regions, 3, 5, figsize = (6, 5))
+    
+    # *** Plots the effects of macroturbulance... specifically it shows up the effects of convolving the synthetic spectrum
+    if False:
+        plot_macroturb(result_chi.region_result[3], figsize = (6, 5))
+    
+    # *** Plots the effects of shifts and how the chi squared changes with shifts, for a particular region
+    if False:
+        pltshift = partial(plot_shifted, xticks = 3, xlim = (5778.41, 5778.49), ylim = (0.67, 0.92))
+        pltchisq = plot_vs(lambda r: (r.shift_all, r.chisq_all[r.best_index]), xlabel = u"Shift [Å]", ylabel = "$\\chi^2$", xlim = (-0.10, 0.10))
+        plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
+    
+    # *** Plots several abundances for a region and how chi squared changes with abundance, for that region
+    if False:
+        pltshift = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59), ylim = (0.3, 1.1))
+        pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
+        plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
+    
+    # *** Histogram over the distribution of best shifts among the results from the regions
+    # Using the inbuilt histogram plotting function
+    if False:
+        _plt.figure(figsize = (6, 2.8))
+        _plt.hist([r.best_shift for r in result_chi.region_result], bins = 15)
+        _plt.xlim(-0.0022, 0.0102)
+        _plt.xlabel(u"Shift [Å]", fontsize = plot_font_size)
+        _plt.ylabel("Number of lines", fontsize = plot_font_size)
+        _plt.tight_layout()
+        _plt.show()
+    # Using a custom histogram plotting function
+    if False:
+        _plt.figure(figsize = (6, 2.8))
+        plot_hist([r.best_shift for r in result_chi.region_result], bin_width = 0.001, xlabel = u"Shift [Å]", ylabel = "Number of lines")
+    
+    # *** Plots histograms over the distributions of abundances for the results obtained using chi squared and equivalent widths
+    if False:
+        bins = 10
+        f, ax = _plt.subplots(1,2, figsize = (6,2.8))
+        
+        ax[0].hist(_abund(result_chi.best_abunds), bins = bins)
+        ax[0].set_yticks([0,1,2,3])
+        ax[0].set_xlim(7.33, 7.55)
+        ax[0].set_xlabel("$" + _LOG_ABUND_CONV + "$")
+        ax[0].set_ylabel("Number of lines")
+        
+        ax[1].hist(_abund(result_ew.best_abunds), bins = bins)
+        ax[1].set_yticks([0,1,2,3])
+        ax[1].set_xlim(7.38, 7.65)
+        ax[1].set_xlabel("$" + _LOG_ABUND_CONV + "$")
+        ax[1].set_ylabel("Number of lines")
+        
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Plots the line at approximately 5323 Å (happens to be the strongest line of the ones that has been used)
+    if False:
+        _plt.figure(figsize = (6,3))
+        plot_region(result_chi.region_result[-1], obs_last = True, xticks = 7)
+    
+    # *** Plots the line at approximately 5778 Å
+    if False:
+        _plt.figure(figsize = (6,3))
+        plot_region(result_chi.region_result[5], obs_last = True, xticks = 7)
+    
+    # *** Plots the line at approximately 5705 Å
+    if True:
+        _plt.figure(figsize = (6,3))
+        plot_region(result_chi.region_result[11], obs_last = True, xticks = 7)
+    
+    # *** 
+    if False:
+        region_result = result_chi.region_result
+        plot_row(region_result[14], [partial(plot_region, show_abunds = True, abund_filter = [127, 350, 490], xticks = 4), plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xticks = np.array([7.2 ,  7.35,  7.5 ,  7.65,  7.8]))], figsize = (7,3.5))
 
 # Get the atlas
 _at = _sa.satlas()
@@ -41,7 +116,8 @@ plot_color_list = ["#AA0000", "#008800", "#AA00AA",
 
 # Set the font size of the plots
 plot_font_size = 11
-plot_title_font_size = plot_font_size
+title_font_size = plot_font_size
+legend_font_size = 8
 
 # Set the font to the default
 _plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
@@ -59,7 +135,7 @@ def _log_abund_str(value):
     """
     
 #    value = "{:0.3f}".format(value)
-    value = str(value)
+    value = str(_abund(value))
     return "$" + _LOG_ABUND_CONV + "=" + value + "$"
 
 def estimate_minimum(wav, inten, num = 1000):
@@ -87,7 +163,7 @@ def _abund(abund):
     Determines the convension for abundance numbers
     """
     
-    return abund
+    return 12.0 + abund
 
 def partial(func, *args, **kwargs):
     """
@@ -124,7 +200,7 @@ def _set_title(ax, title):
     Sets the title, and makes sure the font size is correct
     """
     
-    ax.set_title(title, fontsize = plot_title_font_size)
+    ax.set_title(title, fontsize = title_font_size)
 
 def options(*args, **kwargs):
     return args, kwargs
@@ -219,7 +295,7 @@ def plot_abund_compared(region_result, abund = None, show_labels = True, show_le
     lbl_obs = ax.plot(obs_wav, region_result.region.inten, color = "blue", label = "Obs")
     
     if show_legend:
-        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = plot_font_size)
+        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = legend_font_size, frameon = False)
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
@@ -251,7 +327,7 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     lbl_obs = ax.plot(obs_wav, region_result.region.inten, color = "blue", label = "Obs")
     
     if show_legend:
-        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = plot_font_size)
+        ax.legend(handles = [lbl_comp[0], lbl_real[0], lbl_obs[0]], loc = legend_pos, fontsize = legend_font_size, frameon = False)
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
@@ -296,7 +372,7 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
-        ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = 8, frameon = False)
+        ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = legend_font_size, frameon = False)
     if figure_axes == None:
         _plt.tight_layout()
         _plt.show()
@@ -321,6 +397,44 @@ def _create_bins(values, delta):
 
 def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator = None, xlabel = None, ylabel = None, xticks = None, yticks = None, figure_axes = None):
     """
+    Plots a histogram. The required argument is
+    
+        values : The values to plot.
+        
+    The optional arguments are
+    
+        delta       : Determines how far away two values can be while being in the same bin.
+                      Default is 0.
+        
+        bins        : If not None, sets the bins in which to place the different values.
+                      Default is None.
+        
+        bin_width   : If not None, sets the width of the bars in the histogram. Can be a number or a function. If it is a function it takes
+                      a single required argument, which is the bins. If None, the width of the bins will be calculated internally instead.
+                      Default is None.
+        
+        xlabel      : The label for the y axis. If set to None, no such label is shown.
+                      Default is None.
+        
+        ylabel      : The label for the y axis. If set to None, no such label is shown.
+                      Default is None.
+        
+        xticks       : Sets the ticks of the x axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of x values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
+        
+        yticks       : Sets the ticks of the y axis. It can be None, an integer or a function. If this is an integer, it specifies how many
+                       ticks should be used. If, on the other hand, this is a function then it will take the array of y values and return a new
+                       array of filtered ticks. And if None is used, nothing will happen.
+                       Default is None.
+        
+        figure_axes  : Sets the axes object. If this is None, then the result of
+                       matplotlib.pyplot.gca() will be used. And if this is not None
+                       then it will be used to plot the abundance. Also note that
+                       if this is not None, the plot will not be shown implicitly.
+                       Thereby this can be used to have several plots in the same figure.
+                       Default is None.
     """
     
     if len(values) == 0:
@@ -328,7 +442,7 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
 
     ax = _get_figure_axes(figure_axes)
     
-    if bins == None:
+    if None == bins:
         bins = _create_bins(values, delta)
     
     content = np.zeros(len(bins), dtype = np.float64)
@@ -365,7 +479,24 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
         _plt.tight_layout()
         _plt.show()
 
-def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xticks = None, yticks = None, xlim = None, ylim = None, figure_axes = None):
+def _plot_obs(region_result, obs_pad, ax):
+    # Get the observed spectrum contained in the region
+    if obs_pad == (0.0, 0.0):
+        rwav = region_result.region.wav
+        rinten = region_result.region.inten
+    else:
+        lambda0 = region_result.region.lambda0 - obs_pad[0]
+        lambda_end = region_result.region.lambda_end + obs_pad[1]
+        
+        # Get the wavelengths and intensities
+        rwav, rinten, cont = _at.getatlas(lambda0, lambda_end, cgs = True)
+        rinten /= region_result.region.inten_scale_factor
+    
+    # Plot the observed spectrum, followed by the synth lines
+    return ax.plot(rwav, rinten, color = "blue", label = "FTS atlas"), rwav
+    
+
+def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, obs_last = True, abund_filter = None, xticks = None, yticks = None, xlim = None, ylim = None, figure_axes = None):
     """
     Plots the given region result.
 
@@ -410,6 +541,9 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
         obs_pad      : The padding of the observed data. Specifically, it can be used to show observed data from outside of the
                        region. A positive value expands the observed region shown while a negative value decreases it.
                        Default is 0.
+        
+        obs_last     : If True, the observed spectrum is drawn first. Otherwise the observed spectrum is drawn last.
+                       Default is True.
         
         abund_filter : A filter that determines which abundances should be shown. It can be None, a function of anything that a numpy
                        array can be indexed or sliced with. If it is None, nothing is filtered out. If it is a function, it is expected
@@ -459,23 +593,25 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     legend_labels = []
     
     # Get the observed spectrum contained in the region
-    if obs_pad == (0.0, 0.0):
-        rwav = region_result.region.wav
-        rinten = region_result.region.inten
-    else:
-        lambda0 = region_result.region.lambda0 - obs_pad[0]
-        lambda_end = region_result.region.lambda_end + obs_pad[1]
-        
-        # Get the wavelengths and intensities
-        rwav, rinten, cont = _at.getatlas(lambda0, lambda_end, cgs = True)
-        rinten /= region_result.region.inten_scale_factor
-    
-    # Plot the observed spectrum, followed by the synth lines
-    lbl_obs = ax.plot(rwav, rinten, color = "blue", label = "FTS atlas")
+#    if obs_pad == (0.0, 0.0):
+#        rwav = region_result.region.wav
+#        rinten = region_result.region.inten
+#    else:
+#        lambda0 = region_result.region.lambda0 - obs_pad[0]
+#        lambda_end = region_result.region.lambda_end + obs_pad[1]
+#        
+#        # Get the wavelengths and intensities
+#        rwav, rinten, cont = _at.getatlas(lambda0, lambda_end, cgs = True)
+#        rinten /= region_result.region.inten_scale_factor
+#    
+#    # Plot the observed spectrum, followed by the synth lines
+#    lbl_obs = ax.plot(rwav, rinten, color = "blue", label = "FTS atlas")
+    # Plot the observed spectrum, of obs_last is not True
+    if not obs_last:
+        lbl_obs, rwav = _plot_obs(region_result, obs_pad, ax)
 
     # Plot the synthetic spectrum
     if show_abunds:
-    
         # Get the intensities for the filtered (or unfiltered) abundances
         abund, inten = _filter_abund(abund_filter, region_result.abund, region_result.inten)
         
@@ -490,6 +626,9 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     lbl_best = ax.plot(wav - offset, region_result.best_inten, color = "red", label = _log_abund_str(region_result.best_abund))
     legend_labels.append(lbl_best[0])
     
+    # Plot the observed spectrum, of obs_last is True
+    if obs_last:
+        lbl_obs, rwav = _plot_obs(region_result, obs_pad, ax)
     legend_labels.append(lbl_obs[0])
     
     # Set the formatter
@@ -512,69 +651,12 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
-        ax.legend(handles = legend_labels, loc = legend_pos, fontsize = 8, frameon = False)
+        ax.legend(handles = legend_labels, loc = legend_pos, fontsize = legend_font_size, frameon = False)
     if figure_axes == None:
         _plt.tight_layout()
         _plt.show()
 
-def plot_spec(region_results, show_observed = True, show_continuum = False, show_unshifted = False, padding = 0.0, cgs = True):
-    """
-    Plots the spectrum that is coverd by the given region results. The required argument is
-
-        region_results : An iterable of region results. Not that these results must be instances of ChiRegionResult.
-        
-    The optional arguments are
-
-        show_observed  : Determines if the observed data should be shown in the plot.
-                         Default is True.
-        
-        show_continuum : Determines if the continuum level should be shown. This continuum level is assumed to be the the continuum given
-                         by the atlas.
-                         Default is False.
-                         
-        show_unshifted : Determines if the unshifted synthetic data should be shown.
-                         Default is False.
-                         
-        padding        : Determines how much excess data from the observed spectrum should be shown.
-                         Default is 0.
-        
-        cgs            : Determines is cgs units should be used.
-                         Default is True.
-    """
-
-    # Plot the regions
-    for r in region_results:
-        for a in range(r.inten.shape[0]):
-            # Unshifted
-            if show_unshifted:
-                _plt.plot(r.wav + r.shift[a], r.inten[a], color = plot_color_list[a % len(plot_color_list)], alpha = 0.25, linestyle = "--")
-            
-            # Shifted
-            _plt.plot(r.wav, r.inten[a], color = plot_color_list[a % len(plot_color_list)])
-    
-    if show_observed or show_continuum:
-        # Find the interval of the spectrum
-        # This is rather inefficient but it is unlikely there will be enough regions for this to matter
-        min_wl = min([r.region.lambda0 for r in region_results]) - padding
-        max_wl = max([r.region.lambda_end for r in region_results]) + padding
-        wl, inten, cont = _at.getatlas(min_wl, max_wl, cgs = cgs)
-        
-        # Normalize using the continuum
-        inten /= cont
-        
-        # Plot the entire observed spectrum
-        if show_observed:
-            _plt.plot(wl, inten, color = "blue", alpha = 0.5)
-        
-        # Plot the continuum level of the atlas
-        if show_continuum:
-            _plt.plot(wl, cont, color = "blue", linestyle = "--", alpha = 0.5)
-    
-    _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
-    _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
-    _plt.show()
-
-def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xlim = None, ylim = None):
+def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xlim = None, ylim = None, xfmt = "%0.2f"):
     """
     Creates a function that plots two quantities derived from a region result object, such as an instance of
     ChiRegionResult or EWRegionResult, against each other. The created function is returned. The required
@@ -607,6 +689,10 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xl
         
         ylim   : Sets the limits of the y axis. If this is None, no limit is set.
                  Default is None.
+        
+        xfmt   : If not None, sets the formatter for the x axis. For information about how this works, look at the documentation
+                 for matplotlib.ticker.FormatStrFormatter.
+                 Default is "%0.2f".
     
     The returned function has a single required argument, namely
 
@@ -629,7 +715,8 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xl
         x, y = func(region_result)
         ax.plot(x, y)
         
-        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+        if xfmt != None:
+            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter(xfmt))
         
         # Adjust the ticks for the x and y axes
         _adjust_xyticks(ax, xticks, yticks)
@@ -681,7 +768,7 @@ def plot_vs_abund(abund, values, ylabel = None, xticks = None, yticks = None, fi
     # Get the axes object
     ax = _get_figure_axes(figure_axes)
     
-    ax.plot(abund, values)
+    ax.plot(_abund(abund), values)
     
     # Adjust the x ticks
     _adjust_xyticks(ax, xticks, yticks)
@@ -832,7 +919,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
     if figure_axes == None:
         _plt.show()
 
-def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4):
+def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4, figsize = None):
     """
     Plots the intensity that handles macroturbulence and the corresponding intensity that does not handle macroturbulence against
     the wavelength, for an abundance. If no abundance is specified, the best fit abundance is used. The required argument is
@@ -885,11 +972,18 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
                         is x, second element is y) of the lower left corner of the legend. This position has to be
                         in the coordinates of the plot, so x is wavelength and y is the normalized intensity.
                         Default is 4.
+        
+        figsize       : If not None, this sets the size of the figure.
+                        Default is None.
 
     """
+    
+    # Set the figure size
+    if None != figsize:
+        _plt.figure(figsize = figsize)
 
     # If the abundance index is None, set it to the index of the best fit abundance    
-    if abund_index == None:
+    if None == abund_index:
         abund_index = region_result.best_index
     
     # Get the intensities
@@ -898,17 +992,17 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     inten_obs = region_result.region.inten
     
     # Plot the intensities without macroturbulence and then with macroturbulence against the wavelength
-    lbl_nm = _plt.plot(region_result.wav, inten_nm, color = "red", label = "Not convolved")
+    lbl_nm = _plt.plot(region_result.wav, inten_nm, color = "red", label = "Original")
     lbl = _plt.plot(region_result.wav, inten_wm, color = "green", label = "Convolved")
     labels = [lbl_nm[0], lbl[0]]
     
     # Plot the observed spectrum if show_obs is true
     if show_obs and alpha_obs != 0.0:
-        lbl_obs = _plt.plot(region_result.region.wav, inten_obs, color = "blue", label = "Observed", alpha = alpha_obs, linestyle = linestyle_obs)
+        lbl_obs = _plt.plot(region_result.region.wav, inten_obs, color = "blue", label = "FTS atlas", alpha = alpha_obs, linestyle = linestyle_obs)
         labels.append(lbl_obs[0])
     
     # Add the legend showing which curve is which, as well as the x-axis and y-axis labels... then show the plot
-    _plt.legend(handles = labels, loc = legend_pos, fontsize = plot_font_size)
+    _plt.legend(handles = labels, loc = legend_pos, fontsize = legend_font_size, frameon = False)
     _plt.xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
     _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
 
@@ -935,7 +1029,7 @@ def _estimate_line_wavelength(region):
     inten = si.splev(wav, tck, der = 0)
     return wav[inten == min(inten)][0]
 
-def plot_abund(region_results, with_H_as_12 = False, figure_axes = None):
+def plot_abund(region_results, figure_axes = None):
     """
     Plots the best iron abundances against characteristic wavelengths of
     the regions. The argument is:
@@ -943,9 +1037,6 @@ def plot_abund(region_results, with_H_as_12 = False, figure_axes = None):
         region_results : The list of region results.
     
     The optional argument is
-        
-        with_H_as_12 : Sets which abundance convention should be used.
-                       Default is False.
         
         figure_axes  : Sets the axes object. If this is None, then the result of
                        matplotlib.pyplot.gca() will be used. And if this is not None
@@ -961,9 +1052,7 @@ def plot_abund(region_results, with_H_as_12 = False, figure_axes = None):
         ax = figure_axes
     
     wav = np.array([_estimate_line_wavelength(r.region) for r in region_results])
-    abund = np.array([r.best_abund for r in region_results])
-    if with_H_as_12:
-        y += 12.0
+    abund = np.array([_abund(r.best_abund) for r in region_results])
     
     ax.plot(abund, wav, ".")
     ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
@@ -972,7 +1061,7 @@ def plot_abund(region_results, with_H_as_12 = False, figure_axes = None):
     if figure_axes == None:
         _plt.show()
 
-def abund_histogram(region_results, bins = 5, with_H_as_12 = False, figure_axes = None):
+def abund_histogram(region_results, bins = 5, figure_axes = None):
     """
     Plots a histogram of the abundances, using the given amount of bins.
     The required argument is
@@ -984,9 +1073,6 @@ def abund_histogram(region_results, bins = 5, with_H_as_12 = False, figure_axes 
     
         bins         : The amount of bins of the histogram.
                        Default is 5.
-        
-        with_H_as_12 : Sets which abundance convention should be used.
-                       Default is False.
         
         figure_axes  : Sets the axes object. If this is None, then the result of
                        matplotlib.pyplot.gca() will be used. And if this is not None
@@ -1001,15 +1087,13 @@ def abund_histogram(region_results, bins = 5, with_H_as_12 = False, figure_axes 
     else:
         ax = figure_axes
     
-    abundances = np.array([r.best_abund for r in region_results])
-    if with_H_as_12:
-        abundances += 12.0
+    abundances = np.array([_abund(r.best_abund) for r in region_results])
     ax.hist(abundances, bins = bins)
     ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
     if figure_axes == None:
         _plt.show()
 
-def dual_abund_histogram(result_chi, result_ew, bins = 5, with_H_as_12 = False, xticks = None, yticks = None):
+def dual_abund_histogram(result_chi, result_ew, bins = 5, xticks = None, yticks = None):
     """
     Plots two histograms of the abundances, using the given amount of bins. The first
     histogram is for the abundances aquired using chi squared fitting, while the second
@@ -1027,9 +1111,6 @@ def dual_abund_histogram(result_chi, result_ew, bins = 5, with_H_as_12 = False, 
         bins         : The amount of bins of the histograms.
                        Default is 5.
         
-        with_H_as_12 : Sets which abundance convention should be used.
-                       Default is False.
-        
         xticks       : Sets the xticks. If this is None, nothing is done.
                        Default is None.
         
@@ -1043,18 +1124,18 @@ def dual_abund_histogram(result_chi, result_ew, bins = 5, with_H_as_12 = False, 
 
     # Plot the histograms
     for ax, r, t in zip(axes, results, titles):
-        ax.set_title(t, fontsize = plot_title_font_size)
+        ax.set_title(t, fontsize = title_font_size)
         if xticks != None:
             ax.set_xticks(xticks)
         if yticks != None:
             ax.set_yticks(yticks)
-        abund_histogram(r, bins = bins, with_H_as_12 = with_H_as_12, figure_axes = ax)
+        abund_histogram(r, bins = bins, figure_axes = ax)
     
 #    # Plot the histogram for the equivalent width results
 #    axes[1].set_title("Result from EW", fontsize = plot_font_size)
 #    if xticks != None:
 #        axes[1].set_xticks(xticks)
-#    abund_histogram(result_ew, bins = bins, with_H_as_12 = with_H_as_12, figure_axes = axes[1])
+#    abund_histogram(result_ew, bins = bins, figure_axes = axes[1])
 
     # Show the histograms   
     fig.tight_layout()
@@ -1160,7 +1241,7 @@ def plot_row(obj, plot_funcs, titles = None, figsize = None):
         fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs), figsize = figsize)
     for i, f in enumerate(plot_funcs):
         if titles != None:
-            ax[i].set_title(titles[i], fontsize = plot_title_font_size)
+            ax[i].set_title(titles[i], fontsize = title_font_size)
         f(obj, figure_axes = ax[i])
     
     _plt.tight_layout()
@@ -1178,7 +1259,7 @@ def _hide(ax):
     ax.spines["right"].set_color("none")
     ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
     
-def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
+def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None, figsize = None):
     """
     Plots the given list of objects in a grid with the given amount of rows and columns, using the given plotting
     function. The required arguments are
@@ -1194,11 +1275,14 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
     
     The optional arguments are
         
-        xlabel   : The global label for the y axis. If set to None, no such label is shown.
-                   Default is None.
+        xlabel  : The global label for the y axis. If set to None, no such label is shown.
+                  Default is None.
         
-        ylabel   : The global label for the y axis. If set to None, no such label is shown.
-                   Default is None.
+        ylabel  : The global label for the y axis. If set to None, no such label is shown.
+                  Default is None.
+        
+        figsize : Sets the size of the figure. If None, this does nothing.
+                  Default is None.
     """
     
     # Make sure there are enough "cells"
@@ -1207,7 +1291,10 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None):
         print("WARNING: All objects does not fit in the grid, so some will be ignored.")
     
     # Create the figure
-    fig = _plt.figure()
+    if None != figsize:
+        fig = _plt.figure(figsize = figsize)
+    else:
+        fig = _plt.figure()
     
     # Create the main axis
     main_ax = fig.add_subplot(1,1,1)
@@ -1305,7 +1392,7 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     # Plot everything
     for i, (obj, ax) in enumerate(zip(objects, axes)):
         if titles != None:
-            ax.set_title(titles[i], fontsize = plot_title_font_size)
+            ax.set_title(titles[i], fontsize = title_font_size)
         if xticks != None:
             ax.set_xticks(xticks)
         if yticks != None:
@@ -1325,15 +1412,20 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     fig.tight_layout()
     _plt.show()
 
-def plot_region_mosaic(regions, rows, columns):
+def plot_region_mosaic(regions, rows, columns, figsize = None):
     """
-    Plots the given regions in a mosaic with the given amount of rows and columns. The arguments are
+    Plots the given regions in a mosaic with the given amount of rows and columns. The required arguments are
     
         regions : An iterable of Region objects.
         
         rows    : The number of rows.
         
         columns : The number of columns.
+    
+    The optional argument is
+    
+        figsize : Sets the size of the figure. If None, this does nothing.
+                  Default is None.
     """
     
     # Function used to plot a single cell
@@ -1341,17 +1433,22 @@ def plot_region_mosaic(regions, rows, columns):
         ax.set_ylim([0,1.02])
         ax.plot(r.wav, r.inten, color = "blue")
     
-    plot_grid(regions, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity")
+    plot_grid(regions, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity", figsize = figsize)
 
-def plot_result_mosaic(region_results, rows, columns):
+def plot_result_mosaic(region_results, rows, columns, figsize = None):
     """
-    Plots the given region results in a mosaic with the given amount of rows and columns. The arguments are
+    Plots the given region results in a mosaic with the given amount of rows and columns. The required arguments are
     
         region_results : An iterable of RegionResult objects.
         
         rows           : The number of rows.
         
         columns        : The number of columns.
+    
+    The optional argument is
+    
+        figsize : Sets the size of the figure. If None, this does nothing.
+                  Default is None.
     """
     
     # Function used to plot a single cell
@@ -1361,4 +1458,4 @@ def plot_result_mosaic(region_results, rows, columns):
         ax.plot(reg_result.wav, reg_result.best_inten, color = "red")
         ax.plot(reg.wav, reg.inten, color = "blue")
 
-    plot_grid(region_results, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity")
+    plot_grid(region_results, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity", figsize = figsize)
