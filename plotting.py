@@ -45,15 +45,15 @@ def plot_stuff(result_pair):
     
     # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5778 Å
     if False:
-        pltshift = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59), ylim = (0.3, 1.1))
+        pltline = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59), ylim = (0.3, 1.1))
         pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
-        plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
+        plot_row(result_chi.region_result[5], [pltline, pltchisq], figsize = (6, 3))
     
     # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5232 Å
     if False:
-        pltshift = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xlim = (5232.17, 5234.16), xticks = 3)
+        pltline = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xlim = (5232.17, 5234.16), xticks = 3)
         pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
-        plot_row(result_chi.region_result[-1], [pltshift, pltchisq], figsize = (6, 3))
+        plot_row(result_chi.region_result[-1], [pltline, pltchisq], figsize = (6, 3))
     
     # *** Plots a close up on what happens for different abundances for the strong line at approximately 5232 Å
     if False:
@@ -172,7 +172,7 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # *** Show the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
-    if True:
+    if False:
         # Get the data
         data_unordered = [(r_chi.best_abund - r_ew.best_abund, r_chi, r_ew) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         abund_diffs, region_result_chi, region_result_ew = zip(*sorted(data_unordered, key = lambda x: x[0]))
