@@ -36,6 +36,16 @@ def display(result_pair):
     ew_synth = [r.best_eq_width for r in result_ew.region_result]
     ew_diff = [abs(r.best_diff) for r in result_ew.region_result]
     print(latexgen.gen_table([lines, numbers(_abund(result_ew.best_abunds), fmt = "{:0.3f}"), ew_obs, ew_synth, ew_diff], number_fmt = "{:0.4f}"))
+    
+    # Calculate the differences in abundance between the best synthetic lines obtained by chi squared and equivalent widths
+    abund_diffs = [r_chi.best_abund - r_ew.best_abund for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
+    
+    # Generate a table over the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
+    print("\n\nLatex table: differences between abundance derived using chi² and equivalent widths")
+    print(latexgen.gen_table([numbers(lines, fmt = "{:0.4f}"), _abund(result_chi.best_abunds), _abund(result_ew.best_abunds), abund_diffs], number_fmt = "{:0.3f}"))
+    
+    # Print the mean difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths, as well as the standard deviation
+    print("\n\nAbund diff:", np.mean(abund_diffs), "+-", np.std(abund_diffs), "    <---- This is the mean and standard deviation")
 
 def print_best(result_pair):
     """

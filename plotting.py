@@ -35,7 +35,7 @@ def plot_stuff(result_pair):
     
     # *** Plots the effects of macroturbulance... specifically it shows up the effects of convolving the synthetic spectrum
     if False:
-        plot_macroturb(result_chi.region_result[3], figsize = (6, 5))
+        plot_macroturb(result_chi.region_result[3], xticks = 5, yticks = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], figsize = (4, 3))
     
     # *** Plots the effects of shifts and how the chi squared changes with shifts, for a particular region
     if False:
@@ -56,7 +56,7 @@ def plot_stuff(result_pair):
         plot_row(result_chi.region_result[-1], [pltshift, pltchisq], figsize = (6, 3))
     
     # *** Plots a close up on what happens for different abundances for the strong line at approximately 5232 Å
-    if True:
+    if False:
         _plt.figure(figsize = (6,3.5))
         plot_region(result_chi.region_result[-1], show_abunds = True, abund_filter = [0, 58, 201, 309, 499], xlim = (5232.89, 5233.01), ylim = (0.165, 0.192))
     
@@ -72,8 +72,18 @@ def plot_stuff(result_pair):
         _plt.show()
     # Using a custom histogram plotting function
     if False:
-        _plt.figure(figsize = (6, 2.8))
-        plot_hist([r.best_shift for r in result_chi.region_result], bin_width = 0.001, xlabel = u"Shift [Å]", ylabel = "Number of lines")
+        _plt.figure(figsize = (5, 2.8))
+        plot_hist([1e3*r.best_shift for r in result_chi.region_result], bin_width = 1, xlabel = u"Shift [mÅ]", ylabel = "Number of lines")
+    
+    # *** Histogram over the distribution of the absolute value of the difference in equivalent width between the synthetic and observed lines
+    if False:
+        _plt.figure(figsize = (5, 2.8))
+        _plt.hist([1e3*abs(r.best_diff) for r in result_ew.region_result])
+        _plt.xlabel(u"$| \\Delta W |$ [mÅ]")
+        _plt.ylabel("Number of lines")
+        _plt.yticks([0, 1, 2, 3, 4])
+        _plt.tight_layout()
+        _plt.show()
     
     # *** Plots histograms over the distributions of abundances for the results obtained using chi squared and equivalent widths
     if False:
@@ -141,6 +151,49 @@ def plot_stuff(result_pair):
         f, ax = _plt.subplots(nrows = 1, ncols = 2, figsize = (6,3))
         plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (rwav[0], rwav[-1]), ylim = (0.0, 1.1), figure_axes = ax[0], color = "blue")
         plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), figure_axes = ax[1], color = "blue")
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Plots the differences in abundance between when chi squared is used and when equivalent widths are used
+    if False:
+        # Calculate the differences in abundance between when chi squared is used and when equivalent widths are used 
+        data_unordered = [(r_chi.region.estimate_minimum(), r_chi.best_abund - r_ew.best_abund, r_ew, r_chi) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
+        data_diffs = sorted(data_unordered, key = lambda x: x[0])
+        rwav, abund_diff, _, _ = map(np.array, zip(*data_diffs))
+        
+        # Plot the differences
+        _plt.figure(figsize = (4, 3))
+        _plt.plot(rwav, abund_diff, ".")
+        _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
+        _plt.ylabel("$(" + _LOG_ABUND_CONV + ")_{\\chi^2} - (" + _LOG_ABUND_CONV + ")_{EW}$", fontsize = plot_font_size)
+        _plt.xlim(rwav[0] - 50, rwav[-1] + 50)
+        _plt.xticks(np.linspace(rwav[0], rwav[-1], num = 6))
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Show the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
+    if True:
+        # Get the data
+        data_unordered = [(r_chi.best_abund - r_ew.best_abund, r_chi, r_ew) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
+        abund_diffs, region_result_chi, region_result_ew = zip(*sorted(data_unordered, key = lambda x: x[0]))
+        regres_chi = region_result_chi[0]
+        regres_ew = region_result_ew[0]
+        region = regres_chi.region
+        
+        # Plot the difference
+        _plt.figure(figsize = (4,3))
+        lbl_obs = _plt.plot(region.wav, region.inten, color = "blue", linestyle = "--", label = "FTS atlas")
+        lbl_chi = _plt.plot(regres_chi.wav, regres_chi.best_inten, color = "red", label = "$\\chi^2$")
+        lbl_ew = _plt.plot(regres_ew.wav - regres_chi.best_shift, regres_ew.best_inten, color = "green", label = "$EW$")
+        legend_labels = [lbl_obs[0], lbl_chi[0], lbl_ew[0]]
+        wav_min, wav_max = min([region.wav[0], regres_chi.wav[0], regres_ew.wav[0]]), max([region.wav[-1], regres_chi.wav[-1], regres_ew.wav[-1]])
+        _plt.xlim(wav_min, wav_max)
+        _plt.ylim(0.45, 1.05)
+        _plt.xticks(np.linspace(wav_min, wav_max, num = 4))
+        _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
+        _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
+        _plt.legend(handles = legend_labels, loc = 4, frameon = False, fontsize = legend_font_size)
+        _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
         _plt.tight_layout()
         _plt.show()
     
@@ -1084,7 +1137,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
     if figure_axes == None:
         _plt.show()
 
-def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4, figsize = None):
+def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, yticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4, figsize = None):
     """
     Plots the intensity that handles macroturbulence and the corresponding intensity that does not handle macroturbulence against
     the wavelength, for an abundance. If no abundance is specified, the best fit abundance is used. The required argument is
@@ -1108,6 +1161,11 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
         
         xticks        : If not None, this sets the x ticks of the plot. It can be a positive integer, in
                         which case it determines how many x ticks should be placed between the minimum and
+                        maximum wavelengths (including bounderies). Otherwise it is an array over x ticks.
+                        Default is None.
+        
+        yticks        : If not None, this sets the y ticks of the plot. It can be a positive integer, in
+                        which case it determines how many y ticks should be placed between the minimum and
                         maximum wavelengths (including bounderies). Otherwise it is an array over x ticks.
                         Default is None.
         
@@ -1179,12 +1237,22 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     if isinstance(xticks, int) and xticks > 0:
         xticks = np.linspace(region_result.wav[0], region_result.wav[-1], num = xticks)
         _plt.xticks(xticks)
-    elif xticks != None:
+    elif None != xticks:
         _plt.xticks(xticks)
+    
+    # Adjust the y ticks
+    if isinstance(yticks, int) and yticks > 0:
+        yticks = np.linspace(min_inten - 0.05, 1.1, num = yticks)
+        _plt.yticks(yticks)
+    elif None != xticks:
+        _plt.yticks(yticks)
+    
+    # Set the format of the x axis
     if xticks_fmt != None:
         _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter(xticks_fmt))
     
     # Show the plot
+    _plt.tight_layout()
     _plt.show()
 
 def _estimate_line_wavelength(region):
