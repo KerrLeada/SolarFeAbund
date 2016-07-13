@@ -42,23 +42,47 @@ def plot_stuff(result_pair):
         pltshift = partial(plot_shifted, xticks = 3, xlim = (5778.41, 5778.49), ylim = (0.67, 0.92))
         pltchisq = plot_vs(lambda r: (r.shift_all, r.chisq_all[r.best_index]), xlabel = u"Shift [Å]", ylabel = "$\\chi^2$", xlim = (-0.10, 0.10))
         plot_row(result_chi.region_result[5], [pltshift, pltchisq], figsize = (6, 3))
+    if False:
+        regres = result_chi.region_result[5]
+        _plt.figure(figsize = (3, 2.5))
+        plot_shifted(regres, xticks = 3, xlim = (5778.41, 5778.49), ylim = (0.655, 0.94))
+        _plt.figure(figsize = (3, 2.5))
+        plot_vs(lambda r: (r.shift_all, r.chisq_all[r.best_index]), xlabel = u"Shift [Å]", ylabel = "$\\chi^2$", xlim = (-0.10, 0.10))(regres)
     
     # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5778 Å
     if False:
         pltline = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59), ylim = (0.3, 1.1))
         pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
         plot_row(result_chi.region_result[5], [pltline, pltchisq], figsize = (6, 3))
+    if False:
+        regres = result_chi.region_result[5]
+        _plt.figure(figsize = (3, 2.5))
+        plot_region(regres, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5778.33, 5778.59))
+        _plt.figure(figsize = (3, 2.5))
+        plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")(regres)
     
     # *** Plots several abundances for a region and how chi squared changes with abundance, for that region... the region is the line at approximately 5232 Å
     if False:
         pltline = partial(plot_region, show_abunds = True, abund_filter = [7, 490], xlim = (5232.17, 5234.16), xticks = 3)
         pltchisq = plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")
         plot_row(result_chi.region_result[-1], [pltline, pltchisq], figsize = (6, 3))
+    if False:
+        regres = result_chi.region_result[-1]
+        _plt.figure(figsize = (3, 2.5))
+        plot_region(regres, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5232.17, 5234.35))
+        _plt.figure(figsize = (3, 2.5))
+        plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")(regres)
     
     # *** Plots a close up on what happens for different abundances for the strong line at approximately 5232 Å
     if False:
         _plt.figure(figsize = (6,3.5))
         plot_region(result_chi.region_result[-1], show_abunds = True, abund_filter = [0, 58, 201, 309, 499], xlim = (5232.89, 5233.01), ylim = (0.165, 0.192))
+    if False:
+        regres = result_chi.region_result[-1]
+        _plt.figure(figsize = (3.2, 2.5))
+        plot_region(regres, show_abunds = True, abund_filter = [7, 490], xticks = 3, xlim = (5232.17, 5234.35))
+        _plt.figure(figsize = (3.2, 2.5))
+        plot_region(regres, show_abunds = True, xticks = 3, abund_filter = [0, 58, 201, 309, 499], xlim = (5232.89, 5233.10), ylim = (0.165, 0.192))
     
     # *** Histogram over the distribution of best shifts among the results from the regions
     # Using the inbuilt histogram plotting function
@@ -74,6 +98,15 @@ def plot_stuff(result_pair):
     if False:
         _plt.figure(figsize = (5, 2.8))
         plot_hist([1e3*r.best_shift for r in result_chi.region_result], bin_width = 1, xlabel = u"Shift [mÅ]", ylabel = "Number of lines")
+    
+    # *** Plot/histogram over the velocities that would give certain shifts
+    if False:
+        doppler_vels = [_calc_vel(r.best_shift, r.wav[np.argmin(r.inten[r.best_index])]) for r in result_chi.region_result]
+#        shifts = [r.best_shift for r in result_chi.region_result]
+#        linewl = [r.wav[np.argmin(r.inten[r.best_index])] for r in result_chi.region_result]
+#        doppler_vels, shifts, linewl = zip(*sorted(zip(*[doppler_vels, shifts, linewl]), key = lambda x: x[2]))
+        _plt.hist(doppler_vels)
+        _plt.show()
     
     # *** Histogram over the distribution of the absolute value of the difference in equivalent width between the synthetic and observed lines
     if False:
@@ -165,7 +198,7 @@ def plot_stuff(result_pair):
         _plt.figure(figsize = (4, 3))
         _plt.plot(rwav, abund_diff, ".")
         _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
-        _plt.ylabel("$(" + _LOG_ABUND_CONV + ")_{\\chi^2} - (" + _LOG_ABUND_CONV + ")_{EW}$", fontsize = plot_font_size)
+        _plt.ylabel("$\\Delta " + _LOG_ABUND_CONV + "$", fontsize = plot_font_size)
         _plt.xlim(rwav[0] - 50, rwav[-1] + 50)
         _plt.xticks(np.linspace(rwav[0], rwav[-1], num = 6))
         _plt.tight_layout()
@@ -201,6 +234,19 @@ def plot_stuff(result_pair):
     if False:
         region_result = result_chi.region_result
         plot_row(region_result[14], [partial(plot_region, show_abunds = True, abund_filter = [127, 350, 490], xticks = 4), plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xticks = np.array([7.2 ,  7.35,  7.5 ,  7.65,  7.8]))], figsize = (7,3.5))
+    
+    # *** Plots the chi squared of the shifts for all the regions
+    if False:
+        for r in result_chi.region_result:
+            plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")(r)
+
+def _calc_vel(delta_lambda, lambda_em):
+    """
+    Calculates the velocity that corresponds to a doppler shift
+    with a given shift delta_lambda and an emitted wavelength lambda_em.
+    """
+    
+    return delta_lambda*300000.0/lambda_em
 
 # Get the atlas
 _at = _sa.satlas()
@@ -948,6 +994,7 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xl
         if ylabel != None:
             ax.set_ylabel(ylabel, fontsize = plot_font_size)
         if figure_axes == None:
+            _plt.tight_layout()
             _plt.show()
     return plotting_func
 

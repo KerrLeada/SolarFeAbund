@@ -91,7 +91,7 @@ def _abund(abund):
 
 def _calc_vel(delta_lambda, lambda_em):
     """
-    Calculates the velocity that corresponds to a doppler shift
+    Calculates the velocity that corresponds to a Doppler shift
     with a given shift delta_lambda and an emitted wavelength lambda_em.
     """
     
