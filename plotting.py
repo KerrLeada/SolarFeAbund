@@ -205,30 +205,51 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # *** Show the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
-    if False:
+    if True:
         # Get the data
         data_unordered = [(r_chi.best_abund - r_ew.best_abund, r_chi, r_ew) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         abund_diffs, region_result_chi, region_result_ew = zip(*sorted(data_unordered, key = lambda x: x[0]))
-        regres_chi = region_result_chi[0]
-        regres_ew = region_result_ew[0]
-        region = regres_chi.region
-        
-        # Plot the difference
-        _plt.figure(figsize = (4,3))
-        lbl_obs = _plt.plot(region.wav, region.inten, color = "blue", linestyle = "--", label = "FTS atlas")
-        lbl_chi = _plt.plot(regres_chi.wav, regres_chi.best_inten, color = "red", label = "$\\chi^2$")
-        lbl_ew = _plt.plot(regres_ew.wav - regres_chi.best_shift, regres_ew.best_inten, color = "green", label = "$EW$")
-        legend_labels = [lbl_obs[0], lbl_chi[0], lbl_ew[0]]
-        wav_min, wav_max = min([region.wav[0], regres_chi.wav[0], regres_ew.wav[0]]), max([region.wav[-1], regres_chi.wav[-1], regres_ew.wav[-1]])
-        _plt.xlim(wav_min, wav_max)
-        _plt.ylim(0.45, 1.05)
-        _plt.xticks(np.linspace(wav_min, wav_max, num = 4))
-        _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
-        _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
-        _plt.legend(handles = legend_labels, loc = 4, frameon = False, fontsize = legend_font_size)
-        _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
-        _plt.tight_layout()
-        _plt.show()
+
+        # Loop throw a number of lines and plot the best synthetic lines obtained by chi squared and equivalent widths
+        number_of_lines = 1
+        show_around = 0
+        show_unzoomed = False
+        for ai in range(number_of_lines):
+            regres_chi = region_result_chi[ai]
+            regres_ew = region_result_ew[ai]
+            region = regres_chi.region
+            
+            # Get the wavelengths to plot
+            rwav = region.wav
+            rinten = region.inten
+            if show_around == 0:
+                owav = rwav
+                ointen = rinten
+            else:
+                owav, ointen, _ = _at.getatlas(rwav[0] - show_around, rwav[-1] + show_around, cgs = True)
+                ointen /= region.inten_scale_factor
+                if show_unzoomed:
+                    rwav = owav
+                    rinten = ointen
+            
+            # The the minimum and maximum wavelengths
+            wav_min, wav_max = min([rwav[0], regres_chi.wav[0], regres_ew.wav[0]]), max([rwav[-1], regres_chi.wav[-1], regres_ew.wav[-1]])
+            
+            # Plot the difference
+            _plt.figure(figsize = (6,5))
+            lbl_obs = _plt.plot(owav, ointen, color = "blue", alpha = 0.45, linestyle = "-", label = "FTS atlas")
+            lbl_chi = _plt.plot(regres_chi.wav, regres_chi.best_inten, color = "red", label = "$\\chi^2$")
+            lbl_ew = _plt.plot(regres_ew.wav - regres_chi.best_shift, regres_ew.best_inten, color = "green", label = "$EW$")
+            legend_labels = [lbl_obs[0], lbl_chi[0], lbl_ew[0]]
+            _plt.xlim(wav_min, wav_max)
+            _plt.ylim(0.0, 1.05)
+#            _plt.xticks(np.linspace(wav_min, wav_max, num = 7))
+            _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
+            _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
+            _plt.legend(handles = legend_labels, loc = 4, frameon = False, fontsize = legend_font_size)
+            _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+            _plt.tight_layout()
+            _plt.show()
     
     # *** 
     if False:
