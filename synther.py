@@ -611,14 +611,15 @@ def _synth(s, m):
 
 def _setup_regions(atlas, regions):
     """
-    Ensures all regions are instances of regions.Region. Regions on tuple form are converted.
+    Ensures all regions are instances of regions.Region.
     """
     
     # Setup the region data
     region_list = list(regions)
     for ri, r in enumerate(regions):
         if not isinstance(r, regs.Region):
-            region_list[ri] = regs.new_region(atlas, *regions[ri])
+            raise Exception("Region object was an instance of the class " + type(r).__name__ + ", but regions must be instances of regions.Region.")
+            #region_list[ri] = regs.new_region(atlas, *regions[ri])
     return region_list
 
 def _setup_region_data(regions):
@@ -910,7 +911,7 @@ def fit_chi(cfg_file, atlas, regions, abund_range, model_file = None, verbose = 
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+        regions           : An iterable of Region objects.
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -948,7 +949,7 @@ def fit_chi_parallel(cfg_file, atlas, regions, abund_range, processes = 2, model
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+        regions           : An iterable of Region objects.
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -1163,7 +1164,7 @@ def fit_width(cfg_file, atlas, regions, abund_range, eq_width_unit = astropy.uni
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+        regions           : An iterable of Region objects.
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -1203,7 +1204,7 @@ def fit_width_parallel(cfg_file, atlas, regions, abund_range, processes = 2, eq_
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+        regions           : An iterable of Region objects.
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         
@@ -1298,7 +1299,7 @@ def fit_spectrum(cfg_file, atlas, regions, abund_range, processes = 2, eq_width_
 
         atlas             : An atlas object, which contains the observed spectrum.
 
-        regions           : An iterable of Region objects, or alternatively regions in tuple form (see the regions module for more information).
+        regions           : An iterable of Region objects.
 
         abund_range       : A range over the iron abundancies to synthezise the spectrum form.
         

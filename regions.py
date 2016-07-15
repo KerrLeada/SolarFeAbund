@@ -47,12 +47,14 @@ class Region(object):
         nlambda            : The number of steps in the regions. This is essentially how many steps are
                              used whne spectral lines are synthezised.
         
+        lab_wav            : The wavelength corresponding to the laboratory central wavelength of the line.
+        
         scale_factor       : The scale factor that is used when lines are synthezised.
         
         length             : The amount of observed wavelengths.
     """
 
-    def __init__(self, lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = 1.0, noise = 1.0):
+    def __init__(self, lambda0, wav, inten, cont, dlambda, nlambda, lab_wav, scale_factor = 1.0, noise = 1.0):
         """
         Constructor for Region objects. It is not recommeneded to use this constructor directly. The required arguments are
 
@@ -67,6 +69,8 @@ class Region(object):
             dlambda : Step size for synthezising a spectra.
 
             nlambda : Amount of steps for synthezising a spectra.
+            
+            lab_wav : The wavelength corresponding to the laboratory central wavelength of the line.
 
         The optional argument is
         
@@ -88,6 +92,7 @@ class Region(object):
         self.cont = cont
         self.lambda0 = lambda0
         self.length = wav.size
+        self.lab_wav = lab_wav
         
         # Get dlambda
         if hasattr(dlambda, "__call__"):
@@ -175,7 +180,7 @@ class Region(object):
         Creates a copy of this region.
         """
         
-        reg = Region(self.lambda0, self.wav, self.inten, self.cont, self.dlambda, self.nlambda, scale_factor = self.scale_factor)
+        reg = Region(self.lambda0, self.wav, self.inten, self.cont, self.dlambda, self.nlambda, self.lab_wav, scale_factor = self.scale_factor)
         reg.inten_scale_factor = self.inten_scale_factor
         return reg
    
@@ -270,7 +275,7 @@ def calc_dwav(region):
     """
     return region.wav[1:] - region.wav[:-1]
 
-def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None, nlambda = None, noise = 1, cgs = True):
+def new_region_in(atlas, lambda0, lambda_end, lab_wav, scale_factor = 1.0, dlambda = None, nlambda = None, noise = 1, cgs = True):
     """
     Creates a new region in the form of a Region object between lambda0 and lambda_end, using the given atlas object.
     The arguments are
@@ -280,6 +285,8 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         lambda0    : The starting wavelength of the region.
         
         lambda_end : The ending wavelength of the region.
+        
+        lab_wav    : The wavelength corresponding to the laboratory central wavelength of the line.
         
     The optional arguments are
     
@@ -327,9 +334,9 @@ def new_region_in(atlas, lambda0, lambda_end, scale_factor = 1.0, dlambda = None
         nlambda = wav.size
     
     # Return the new region
-    return Region(lambda0, wav, inten, cont, dlambda, nlambda, scale_factor = scale_factor, noise = noise)
+    return Region(lambda0, wav, inten, cont, dlambda, nlambda, lab_wav, scale_factor = scale_factor, noise = noise)
 
-def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, noise = 1, cgs = True):
+def new_region(atlas, lambda0, dlambda, nlambda, lab_wav, scale_factor = 1.0, noise = 1, cgs = True):
     """
     Creates a region in Region form. The required arguments are
 
@@ -340,6 +347,8 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, noise = 1, 
         dlambda : The length of each step.
 
         nlambda : The number of steps.
+        
+        lab_wav : The wavelength corresponding to the laboratory central wavelength of the line.
 
     The optional arguments are
     
@@ -360,9 +369,9 @@ def new_region(atlas, lambda0, dlambda, nlambda, scale_factor = 1.0, noise = 1, 
     obs_wav, obs_inten, obs_cont = atlas.getatlas(lambda0, lambda0 + dlambda*nlambda, cgs = cgs)
     if len(obs_wav) != nlambda:
         raise Exception("The observed data had a length " + str(len(obs_wav)) + " while nlambda was " + str(nlambda) + ". They must match.")
-    return Region(lambda0, obs_wav, obs_inten, obs_cont, dlambda, nlambda, scale_factor = scale_factor, noise = noise)
+    return Region(lambda0, obs_wav, obs_inten, obs_cont, dlambda, nlambda, lab_wav, scale_factor = scale_factor, noise = noise)
 
-def new_region_from(atlas, obj):
+def _new_region_from(atlas, obj):
     """
     Creates a new region from the given object, if said object is not already a region. If it
     is then it will be returned unaltered. Otherwise it is expected to be on tuple form.

@@ -23,6 +23,11 @@ class LatexNumber(object):
         else:
             self.formatter = lambda x: fmt.format(x)
     
+    def __cmp__(self, other):
+        if isinstance(other, LatexNumber):
+            other = other.number
+        return cmp(self.number, other)
+    
     def __str__(self):
         return "$" + self.formatter(self.number) + "$"
     

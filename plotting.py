@@ -189,7 +189,7 @@ def plot_stuff(result_pair):
     
     # *** Plots the differences in abundance between when chi squared is used and when equivalent widths are used
     if False:
-        # Calculate the differences in abundance between when chi squared is used and when equivalent widths are used 
+        # Calculate the differences in abundance between when chi squared is used and when equivalent widths are used
         data_unordered = [(r_chi.region.estimate_minimum(), r_chi.best_abund - r_ew.best_abund, r_ew, r_chi) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         data_diffs = sorted(data_unordered, key = lambda x: x[0])
         rwav, abund_diff, _, _ = map(np.array, zip(*data_diffs))

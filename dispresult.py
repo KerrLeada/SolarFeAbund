@@ -18,7 +18,7 @@ def display(result_pair):
     
     # Get the regions and the lines
     regions = [r.region for r in result_chi.region_result]
-    lines = [r.estimate_minimum() for r in regions]
+    lines = [r.lab_wav for r in regions]
     
     # Function that helps with creating number columns in latex tables
     numbers = latexgen.numbers
@@ -26,7 +26,8 @@ def display(result_pair):
     # Generating the table for the results obtained using chi squared
     print("Latex table: chi²")
     best_shifts = [r.best_shift for r in result_chi.region_result]
-    doppler_vels = [_calc_vel(r.best_shift, r.wav[np.argmin(r.inten[r.best_index])]) for r in result_chi.region_result]
+#    doppler_vels = [_calc_vel(r.best_shift, r.wav[np.argmin(r.inten[r.best_index])]) for r in result_chi.region_result]
+    doppler_vels = [_calc_vel(r.best_shift, r.region.lab_wav) for r in result_chi.region_result]
     chi2 = result_chi.minimized_quantity
     print(latexgen.gen_table([lines, numbers(_abund(result_chi.best_abunds), fmt = "{:0.3f}"), numbers(best_shifts, fmt = "{:0.3f}"), doppler_vels, chi2], number_fmt = "{:0.4f}"))
     
@@ -58,7 +59,8 @@ def print_best(result_pair):
 
     # Print the results for each region
     for i, (r_chi, r_ew) in enumerate(zip(result_chi.region_result, result_ew.region_result)):
-        lambda_em = r_chi.wav[np.argmin(r_chi.inten[r_chi.best_index])]
+#        lambda_em = r_chi.wav[np.argmin(r_chi.inten[r_chi.best_index])]
+        lambda_em = r_chi.region.lab_wav
         print("Region nr ", i,": ", r_chi.region, sep = "")
         print("    Chi squared method:")
         print("        Best chisq:", r_chi.best_chisq)
