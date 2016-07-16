@@ -33,11 +33,13 @@ import time
 
 # Constants... as in, not really constants, but should probably never be modified during runtime
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
-_CONTINUUM_CFG_FILE = "data/nolines.cfg"
 _ELEMENT = "Fe"
 
 # Original value: 101
 _NSHIFT = 101
+
+# Determines if the spectra should be convolved or not
+_CONVOLVE_SPECTRA = True
 
 def _gaussian(x, p):
     """
@@ -55,42 +57,44 @@ def _convolve(var, tr):
     DOCIMENT THIS!!!
     """
     
-    # Get the dimensions
-    n = len(var)
-    n1 = len(tr)
-    npad = n + n1
-    
-    # Handle if there are an uneven amount of elements in tr
-    if(n1 % 2 == 1):
-        npad -= 1
-        off = 1
-    else:
-        off = 0
-    
-    # Pad arrays using wrap around effect
-    # INSERT WHY THIS IS DONE HERE!!!
-    # First: Pad "var"
-    pvar = np.zeros(npad, dtype = np.float64)
-    pvar[0:n] = var                 # First 0 to n (exclusive) values corresponds to the values in "var"
-    pvar[n:n + n1//2] = var[-1]      # The next n1/2 values are set to the last value of "var"
-    pvar[n + n1//2::] = var[0]       # The final n1/2 values are set to the first value of "var"
-    
-    # Padding "tr"
-    ptr = np.zeros(npad, dtype = np.float64)
-    ptr[0:n1] = tr / np.sum(tr)     # WHY IS THIS DONE LIKE THIS?!??!?!?
-    
-    # NOTE: Due to how python 2 handles division and math it has to be: -n1/2 + off
-    #       The code breaks if it would be: off - n1/2
-    #       This is because python rounds the number. In order to get python 3 interoperability,
-    #       this should be fixed so it will work in both python 2 and python 3.
-    ptr = np.roll(ptr, -n1//2 + off)  #
-    
-    # WHAT DOES THIS DO AND WHY??? EXPLAIN EACH STEP!!??!?!?!?
-    pvar_fft = np.fft.rfft(pvar)
-    ptr_fft = np.fft.rfft(ptr)
-    conv = pvar_fft * ptr_fft
-    fftresult = np.fft.irfft(conv)
-    return fftresult[0:n]
+    if _CONVOLVE_SPECTRA:
+        # Get the dimensions
+        n = len(var)
+        n1 = len(tr)
+        npad = n + n1
+        
+        # Handle if there are an uneven amount of elements in tr
+        if(n1 % 2 == 1):
+            npad -= 1
+            off = 1
+        else:
+            off = 0
+        
+        # Pad arrays using wrap around effect
+        # INSERT WHY THIS IS DONE HERE!!!
+        # First: Pad "var"
+        pvar = np.zeros(npad, dtype = np.float64)
+        pvar[0:n] = var                 # First 0 to n (exclusive) values corresponds to the values in "var"
+        pvar[n:n + n1//2] = var[-1]      # The next n1/2 values are set to the last value of "var"
+        pvar[n + n1//2::] = var[0]       # The final n1/2 values are set to the first value of "var"
+        
+        # Padding "tr"
+        ptr = np.zeros(npad, dtype = np.float64)
+        ptr[0:n1] = tr / np.sum(tr)     # WHY IS THIS DONE LIKE THIS?!??!?!?
+        
+        # NOTE: Due to how python 2 handles division and math it has to be: -n1/2 + off
+        #       The code breaks if it would be: off - n1/2
+        #       This is because python rounds the number. In order to get python 3 interoperability,
+        #       this should be fixed so it will work in both python 2 and python 3.
+        ptr = np.roll(ptr, -n1//2 + off)  #
+        
+        # WHAT DOES THIS DO AND WHY??? EXPLAIN EACH STEP!!??!?!?!?
+        pvar_fft = np.fft.rfft(pvar)
+        ptr_fft = np.fft.rfft(ptr)
+        conv = pvar_fft * ptr_fft
+        fftresult = np.fft.irfft(conv)
+        var = fftresult[0:n]
+    return var
 
 class ChiRegionResult(object):
     """

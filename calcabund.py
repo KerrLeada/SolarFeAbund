@@ -23,12 +23,22 @@ _MODE = 0
 _MODE_PRINT_BEST = True
 _MODE_SHOW_REGIONS = False
 _MODE_VERBOSE = True
+_MODE_BAD_MODEL_FILE = False
+_MODE_MODIFIED_LINES = False
+
+if _MODE_BAD_MODEL_FILE:
+    print("****************************************************")
+    print("************* USING THE BAD MODEL FILE *************")
+    print("****************************************************\n")
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
 
 # Read the cfg file
-CFG_FILE = "data/lines.cfg"
+CFG_FILE = "data/lines.cfg" if not _MODE_MODIFIED_LINES else "data/lines_modified.cfg"
+
+# Change model file?
+MODEL_FILE = synther.DEFAULT_MODEL_FILE if not _MODE_BAD_MODEL_FILE else "data/falc_Bnew.nc"
 
 # Get the atlas
 at = sa.satlas()
@@ -98,7 +108,7 @@ abunds = -np.arange(4.3, 4.8, step = 0.001)
 # Synth the spectrum and attempt to fit it to the observed data using the chi squared method
 time_start = time.time()
 try:
-    result = synther.fit_spectrum(CFG_FILE, at, regions, abunds, verbose = _MODE_VERBOSE)
+    result = synther.fit_spectrum(CFG_FILE, at, regions, abunds, model_file = MODEL_FILE, verbose = _MODE_VERBOSE)
 finally:
     time_end = time.time()
     time_tot = time_end - time_start
@@ -179,6 +189,14 @@ def _conv(energy):
 # Show the time the calculation took
 print("")
 print("Total time:", time_tot, "seconds")
+
+# Show a bit of other information
+print("")
+print("Model used:    ", MODEL_FILE)
+print("Bad model used:", _MODE_BAD_MODEL_FILE)
+print("")
+print("Used cfg file: ", CFG_FILE)
+print("Modified lines:", _MODE_MODIFIED_LINES)
 
 # Final reminder of where the results are stored
 print("")
