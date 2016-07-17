@@ -186,6 +186,25 @@ def plot_stuff(result_pair):
         plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), figure_axes = ax[1], color = "blue")
         _plt.tight_layout()
         _plt.show()
+    if False:
+        line_nr = 1
+        rwav = result_chi.region_result[line_nr].region.wav
+        rinten = result_chi.region_result[line_nr].region.inten
+        _plt.figure(figsize = (3,3))
+        plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (rwav[0], rwav[-1]), ylim = (0.0, 1.1), color = "blue")
+        _plt.figure(figsize = (3,3))
+        plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), color = "blue")
+    if True:
+        regres = result_chi.region_result[1]
+        _plt.figure(figsize = (3,3))
+        plot_bisect(regres, show_synth = True, xticks = 3)
+        _plt.figure(figsize = (3,3))
+        plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), color = "blue")
+    
+    # *** Plots the bisector of the line at approximately 6301 Å (both for the observed and synthetic spectra)
+    if False:
+        _plt.figure(figsize = (4,3))
+        plot_bisect(result_chi.region_result[0], show_synth = True, xticks = 5)
     
     # *** Plots the differences in abundance between when chi squared is used and when equivalent widths are used
     if False:
@@ -212,11 +231,12 @@ def plot_stuff(result_pair):
 
         # Loop throw a number of lines and plot the best synthetic lines obtained by chi squared and equivalent widths
         number_of_lines = 1
+        offset = -1
         show_around = 0
         show_unzoomed = False
         for ai in range(number_of_lines):
-            regres_chi = region_result_chi[ai]
-            regres_ew = region_result_ew[ai]
+            regres_chi = region_result_chi[ai + offset]
+            regres_ew = region_result_ew[ai + offset]
             region = regres_chi.region
             
             # Get the wavelengths to plot
@@ -418,7 +438,7 @@ def _filter_abund(abund_filter, abund, inten):
             inten = inten[abund_filter]
     return abund, inten
 
-def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, ylim = None, xlabel = None, ylabel = None, xfmt = None, yfmt = None, plot_values = True, xy_args = None, show = True, figure_axes = None, **kwargs):
+def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, ylim = None, blim = None, xlabel = None, ylabel = None, xfmt = None, yfmt = None, plot_values = True, xy_args = None, show = True, figure_axes = None, **kwargs):
     """
     Plots a bisector given by x and y. Required arguments
     
@@ -447,6 +467,10 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
         
         ylim         : Sets the limits of the y axis. Should either be a 2 element tuple or None. If None, no limit will be placed. Otherwise
                        the first element in the tuple is the minimum y value shown and the second element is the maximum y value shown.
+                       Default is None.
+        
+        blim         : Sets the upper limit of the bisectors y values. If set to None, no such limit is used. Otherwise, blim has to be a number
+                       or a function. If it is a function it will accept the y values and return a number that will be used as the y limit.
                        Default is None.
         
         xlabel       : If not None, sets the label of the x axis.
@@ -497,7 +521,7 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
         ax = figure_axes
 
     # Plot the bisector    
-    bx, by = bisect.get_bisector(x, y, num = num)
+    bx, by = bisect.get_bisector(x, y, ylim = blim, num = num)
     if plot_values:
         if xy_args != None:
             args_vals, kwargs_vals = xy_args
@@ -517,14 +541,18 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
     if yfmt != None:
         ax.yaxis.set_major_formatter(ticker.FormatStrFormatter(yfmt))
     
+    # Make sure there are always limits
+    if None == xlim:
+        xlim = (min(x), max(x))
+    if None == ylim:
+        ylim = (min(y) - 0.05, 1.1)
+    
     # Adjust the ticks for the x and y axes
     _adjust_xyticks(ax, xticks, yticks, xlimits = xlim, ylimits = ylim)
     
     # Set the limits and labels
-    if xlim != None:
-        ax.set_xlim(xlim)
-    if ylim != None:
-        ax.set_ylim(ylim)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     if xlabel != None:
         ax.set_xlabel(xlabel)
     if ylabel != None:
@@ -1155,6 +1183,8 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
 
     ax = _get_figure_axes(figure_axes)
     
+    colors = plot_color_list
+    
     #
     min_inten_val = np.inf
 
@@ -1164,6 +1194,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
         rwav = region_result.wav
         if None == abund_filter:
             rinten_all = [region_result.best_inten]
+            colors = ["red"]
         elif isinstance(abund_filter, (int, long)):
             rinten_all = [region_result.inten[abund_filter]]
         else:
@@ -1172,15 +1203,15 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
         # Plot the bisectors
         for a, rinten in enumerate(rinten_all):
             bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
-            ax.plot(rwav - offset, rinten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.4, linestyle = "--")
-            ax.plot(bwav - offset, binten, color = plot_color_list[a % len(plot_color_list)], alpha = 0.8)
+            ax.plot(rwav - offset, rinten, color = colors[a % len(colors)], linestyle = "--")
+            ax.plot(bwav - offset, binten, color = colors[a % len(colors)])
     
     # Plot the bisector of the observed data
     if show_observed:
         rwav = region_result.region.wav
         rinten = region_result.region.inten
         bwav, binten = bisect.get_bisector(rwav, rinten, num = num)
-        ax.plot(rwav, rinten, color = "blue", alpha = 0.75, linestyle = "--")
+        ax.plot(rwav, rinten, color = "blue", linestyle = "--")
         ax.plot(bwav, binten, color = "blue")
 
     # Set the formatter
@@ -1203,6 +1234,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if figure_axes == None:
+        _plt.tight_layout()
         _plt.show()
 
 def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs = 1.0, xticks = None, yticks = None, xticks_fmt = "%0.2f", linestyle_obs = "--", legend_pos = 4, figsize = None):
@@ -1548,7 +1580,7 @@ def plot_row(obj, plot_funcs, titles = None, figsize = None):
     _plt.tight_layout()
     _plt.show()
 
-def _hide(ax):
+def _hide(ax, hidden_font_size = None):
     """
     Hides an axes object.
     """
@@ -1559,6 +1591,11 @@ def _hide(ax):
     ax.spines["left"].set_color("none")
     ax.spines["right"].set_color("none")
     ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
+    if hidden_font_size != None:
+        for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+            label.set_fontsize(hidden_font_size)
+#        ax.get_xticklabels().set_fontsize(hidden_font_size)
+#        ax.get_yticklabels().set_fontsize(hidden_font_size)
     
 def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None, figsize = None):
     """
@@ -1608,7 +1645,7 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None, f
         plot_func(ax, obj)
 
     # Hide the "main subplot", except for the labels on the x and y axes
-    _hide(main_ax)
+    _hide(main_ax, hidden_font_size = 1)
     
     # Set the x and y labels
     if xlabel != None:
@@ -1731,7 +1768,8 @@ def plot_region_mosaic(regions, rows, columns, figsize = None):
     
     # Function used to plot a single cell
     def plot_cell(ax, r):
-        ax.set_ylim([0,1.02])
+        ax.set_title("Fe I $\\lambda$ ${:0.4f}".format(r.lab_wav) + "$", fontsize = 8)
+        ax.set_ylim([0,1.10])
         ax.plot(r.wav, r.inten, color = "blue")
     
     plot_grid(regions, rows, columns, plot_cell, xlabel = u"Wavelength $\\lambda$ [Å]", ylabel = u"Normalized intensity", figsize = figsize)
