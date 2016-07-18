@@ -175,6 +175,12 @@ def plot_stuff(result_pair):
         plot_bisector(regres.wav, regres.best_inten, xy_args = options(color = "red"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", figure_axes = ax[1], color = "red")
         _plt.tight_layout()
         _plt.show()
+    if False:
+        regres = result_chi.region_result[1]
+        _plt.figure(figsize = (3,3))
+        plot_bisect(regres, show_synth = True, xticks = 3)
+        _plt.figure(figsize = (3,3))
+        plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), color = "blue")
     
     # *** Plots the bisector of the line at approximately 6302 Å (only for the observed spectra)
     if False:
@@ -194,24 +200,57 @@ def plot_stuff(result_pair):
         plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (rwav[0], rwav[-1]), ylim = (0.0, 1.1), color = "blue")
         _plt.figure(figsize = (3,3))
         plot_bisector(rwav, rinten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), color = "blue")
-    if True:
-        regres = result_chi.region_result[1]
-        _plt.figure(figsize = (3,3))
-        plot_bisect(regres, show_synth = True, xticks = 3)
-        _plt.figure(figsize = (3,3))
-        plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6302.48, 6302.50), ylim = (0.3, 1.0), color = "blue")
     
     # *** Plots the bisector of the line at approximately 6301 Å (both for the observed and synthetic spectra)
     if False:
         _plt.figure(figsize = (4,3))
         plot_bisect(result_chi.region_result[0], show_synth = True, xticks = 5)
+    if False:
+        regres = result_chi.region_result[0]
+        _plt.figure(figsize = (3,3))
+        plot_bisect(regres, show_synth = True, xticks = 3)
+        _plt.figure(figsize = (3,3))
+        plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6301.48, 6301.50), ylim = (0.3, 1.0), color = "blue")
+    
+    # *** Plots the bisector of a line (both for the observed and synthetic spectra)
+    if False:
+        _plt.figure(figsize = (5,3))
+        regres = result_chi.region_result[0]
+        
+        swav = regres.wav
+        sinten = regres.best_inten
+        rwav = regres.region.wav
+        rinten = regres.region.inten
+        
+        bwav, binten = bisect.get_bisector(swav, sinten, ylim = 0.96)
+        lbl_synth = _plt.plot(bwav, binten, color = "red", label = _log_abund_str(regres.best_abund))
+        _plt.plot(swav, sinten, color = "red", linestyle = "--")
+        
+        bwav, binten = bisect.get_bisector(rwav, rinten, ylim = 0.96)
+        lbl_obs = _plt.plot(bwav, binten, color = "blue", label = "FTS atlas")
+        _plt.plot(rwav, rinten, color = "blue", linestyle = "--")
+        
+        xlim = (max(swav[0], rwav[0]) + 0.04, min(swav[-1], rwav[-1]) - 0.04)
+        _plt.xlim(xlim)
+        _plt.ylim(0, 1.1)
+        
+        _plt.xticks(np.linspace(xlim[0], xlim[1], num = 5))
+        _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
+        
+        _plt.legend(handles = [lbl_synth[0], lbl_obs[0]], frameon = False, loc = 4, fontsize = legend_font_size)
+        
+        _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
+        _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
+        
+        _plt.tight_layout()
+        _plt.show()
     
     # *** Plots the differences in abundance between when chi squared is used and when equivalent widths are used
     if False:
         # Calculate the differences in abundance between when chi squared is used and when equivalent widths are used
-        data_unordered = [(r_chi.region.estimate_minimum(), r_chi.best_abund - r_ew.best_abund, r_ew, r_chi) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
+        data_unordered = [(r_chi.region.lab_wav, r_chi.best_abund - r_ew.best_abund) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         data_diffs = sorted(data_unordered, key = lambda x: x[0])
-        rwav, abund_diff, _, _ = map(np.array, zip(*data_diffs))
+        rwav, abund_diff = map(np.array, zip(*data_diffs))
         
         # Plot the differences
         _plt.figure(figsize = (4, 3))
@@ -220,6 +259,22 @@ def plot_stuff(result_pair):
         _plt.ylabel("$\\Delta " + _LOG_ABUND_CONV + "$", fontsize = plot_font_size)
         _plt.xlim(rwav[0] - 50, rwav[-1] + 50)
         _plt.xticks(np.linspace(rwav[0], rwav[-1], num = 6))
+        _plt.tight_layout()
+        _plt.show()
+    
+    # ***
+    if True:
+        data_unordered = [(r_ew.obs_eq_width, r_chi.best_abund - r_ew.best_abund) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
+        data_diffs = sorted(data_unordered, key = lambda x: x[0])
+        ew, abund_diff = map(np.array, zip(*data_diffs))
+        
+        # Plot the differences
+        _plt.figure(figsize = (4, 3))
+        _plt.plot(ew, abund_diff, ".")
+        _plt.xlabel(u"$EW$ [" + str(result_ew.region_result[0].eq_width_unit) + "]", fontsize = plot_font_size)
+        _plt.ylabel("$\\Delta " + _LOG_ABUND_CONV + "$", fontsize = plot_font_size)
+#        _plt.xlim(rwav[0] - 50, rwav[-1] + 50)
+#        _plt.xticks(np.linspace(rwav[0], rwav[-1], num = 6))
         _plt.tight_layout()
         _plt.show()
     
