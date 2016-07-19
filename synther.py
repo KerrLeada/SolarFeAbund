@@ -30,6 +30,7 @@ import multiprocessing as mp
 import astropy.units
 import os
 import time
+from ewutils import equivalent_width
 
 # Constants... as in, not really constants, but should probably never be modified during runtime
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
@@ -435,7 +436,7 @@ class EWRegionResult(object):
         self.no_macroturb_chisq = np.array([(inten_diffs**2.0).sum() for inten_diffs in self.no_macroturb_diffs])
         
         conv_factor = (1 * astropy.units.AA).to(eq_width_unit).value
-        self.no_macroturb_eq_width = np.array([conv_factor*_equivalent_width(wav, i) for i in inten_no_macroturb])
+        self.no_macroturb_eq_width = np.array([conv_factor*equivalent_width(wav, i) for i in inten_no_macroturb])
         
         # Get the best values
         best = np.argmin(abs(diff))
@@ -993,28 +994,7 @@ def fit_chi_parallel(cfg_file, atlas, regions, abund_range, processes = 2, model
     regions = _setup_regions(atlas, regions)
     return _parallel_calc(abund_range, processes, _fit_chi, (cfg_file, regions, model_file, verbose), verbose)
 
-#def _fit_spectrum(
 
-def _equivalent_width(wav, inten):
-    """
-    Calculates the equivalent width for a line obtained with the given wavelength and intensity.
-    """
-    
-    # Technically, the method chosen here is not always optimal since it is sensitive towards blends
-    # and such things. As such it should not be used when there are a lot of blended lines. However,
-    # most lines are "nice" so this might be sufficient. There is also a slight error caused by the
-    # use of the trapezoidal rule, which can be problematic if the resolution of the lines is too low.
-    # In this particular case, the resolution is high enough that this should not be a problem.
-    
-    # The continuum level should be the maximum intensity
-    cont = inten.max()
-
-    # Calculate the area of the line
-    area = np.trapz(cont - inten, x = wav)
-    
-    # If ew is the equivalent width, we have that: cont*ew = area
-    # As such the equivalent width is given by ew = area/cont
-    return area / cont
 
 def _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, verbose):
     """
@@ -1071,7 +1051,7 @@ def _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, ver
         reduced_psf = psf / psf.sum()
         
         # Calculate the equivalent width of the observed data
-        obs_ew = _equivalent_width(robs_wav, robs_inten) * conv_factor
+        obs_ew = equivalent_width(robs_wav, robs_inten) * conv_factor
         
         for ai, a in enumerate(abund_range):
             # Get the region (the padding is to handle float related stuff... at least I think it's float related stuff... CHECK IT!!!!)
@@ -1103,7 +1083,7 @@ def _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, ver
             sinten_nm[ai,:] = rsynth_inten_nm / inten_max_nm[ai]
             
             # Calculate the equivalent width
-            eq_width[ai] = _equivalent_width(rwav, rsynth_inten) * conv_factor
+            eq_width[ai] = equivalent_width(rwav, rsynth_inten) * conv_factor
             diff[ai] = eq_width[ai] - obs_ew
             sinten[ai,:] = rsynth_inten
         result.append(EWRegionResult(r, rwav, sinten, sinten_nm, inten_max, inten_max_nm, obs_ew, eq_width, diff, abund_range, eq_width_unit))

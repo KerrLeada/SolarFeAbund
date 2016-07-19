@@ -15,6 +15,7 @@ import abundutils as _au
 import satlas as _sa
 import scipy.interpolate as si
 import bisect
+import ewutils
 import astropy.units
 
 def plot_stuff(result_pair):
@@ -28,6 +29,16 @@ def plot_stuff(result_pair):
     result_chi = result_pair.result_chi
     result_ew = result_pair.result_ew
     regions = [r.region for r in result_chi.region_result]
+    
+    # ***
+    if True:
+        for r in regions[:]:
+            pts = np.arange(3, 200, step = 1)
+            ew_lin, ew_quad = ewutils.calc_ew_for(r, pts)
+            _plt.plot(pts, ew_lin, color = "red")
+            _plt.plot(pts, ew_quad, color = "blue")
+            _plt.tight_layout()
+            _plt.show()
     
     # *** Plot the mosaic of the observed lines in the regions
     if False:
@@ -263,7 +274,7 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # ***
-    if True:
+    if False:
         data_unordered = [(r_ew.obs_eq_width, r_chi.best_abund - r_ew.best_abund) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         data_diffs = sorted(data_unordered, key = lambda x: x[0])
         ew, abund_diff = map(np.array, zip(*data_diffs))
