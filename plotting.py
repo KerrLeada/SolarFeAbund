@@ -30,15 +30,55 @@ def plot_stuff(result_pair):
     result_ew = result_pair.result_ew
     regions = [r.region for r in result_chi.region_result]
     
-    # ***
-    if True:
+    # *** Plot how equivalent widths converges
+    if False:
         for r in regions[:]:
-            pts = np.arange(3, 200, step = 1)
-            ew_lin, ew_quad = ewutils.calc_ew_for(r, pts)
+            pts = np.arange(3, len(r.wav), step = 1)
+            ew_lin, ew_quad = ewutils.interp_equivalent_width_for(r, pts)
             _plt.plot(pts, ew_lin, color = "red")
             _plt.plot(pts, ew_quad, color = "blue")
             _plt.tight_layout()
             _plt.show()
+    if False:
+        for r in regions[:]:
+            pts = np.arange(3, 200, step = 1)
+            pts, ew, ew_std = ewutils.equivalent_width_for(r, pts)
+            _plt.errorbar(pts, ew, yerr = ew_std)
+            _plt.tight_layout()
+            _plt.show()
+    if False:
+        for r in regions[:]:
+            skips = np.arange(1, int(len(r.wav)/3), step = 1)
+            ew = ewutils.equivalent_width_with(r, skips)
+            _plt.plot(skips, ew)
+            _plt.tight_layout()
+            _plt.show()
+    
+    # Check the sensitivity of equivalent widths for lines
+    if False:
+        regs = [9, -1]
+        offsets = [np.linspace(-0.03, 0.03, num = 25), np.linspace(-0.03, 0.03, num = 25)]
+        for r, off in zip(regs, offsets):
+            o, ew = ewutils.equivalent_width_ci(regions[r], off)
+            _plt.plot(o, ew)
+        _plt.ylim(0,1)
+        _plt.tight_layout()
+        _plt.show()
+    if True:
+        regs = [9, -1]
+        offsets = np.linspace(-0.03, 0.3, num = 33)
+        ew = np.zeros(len(result_ew.region_result), dtype = np.float64)
+        abunderr = np.zeros(len(result_ew.region_result), dtype = np.float64)
+        for i, r in enumerate(result_ew.region_result):
+            best_index, best_ew = ewutils.fit(r.region, offsets, r.wav, r.inten)
+#            abunderr[i] = np.std(r.abund[best_index])
+#            abunderr[i] = len(set(best_index))
+            abunderr[i] = np.std(best_ew)/np.mean(best_ew)
+            ew[i] = r.obs_eq_width
+#        ew, abunderr = zip(*sorted(zip(ew, abunderr), key = lambda x: x[0]))
+        _plt.plot(ew, abunderr, ".")
+        _plt.tight_layout()
+        _plt.show()
     
     # *** Plot the mosaic of the observed lines in the regions
     if False:
