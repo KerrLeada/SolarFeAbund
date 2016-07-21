@@ -54,7 +54,7 @@ def plot_stuff(result_pair):
             _plt.tight_layout()
             _plt.show()
     
-    # Check the sensitivity of equivalent widths for lines
+    # *** Check the sensitivity of equivalent widths for lines
     if False:
         regs = [9, -1]
         offsets = [np.linspace(-0.03, 0.03, num = 25), np.linspace(-0.03, 0.03, num = 25)]
@@ -64,7 +64,7 @@ def plot_stuff(result_pair):
         _plt.ylim(0,1)
         _plt.tight_layout()
         _plt.show()
-    if True:
+    if False:
         regs = [9, -1]
         offsets = np.linspace(-0.03, 0.3, num = 33)
         ew = np.zeros(len(result_ew.region_result), dtype = np.float64)
@@ -79,6 +79,16 @@ def plot_stuff(result_pair):
         _plt.plot(ew, abunderr, ".")
         _plt.tight_layout()
         _plt.show()
+    
+    # ***
+    if True:
+        regres = result_chi.region_result
+        best_abund = result_chi.abund
+        regres = sorted(regres, key = lambda rr: abs(rr.best_abund - best_abund))
+        for r in regres:
+            _plt.title("$| \\Delta " + _LOG_ABUND_CONV + " | = " + str(abs(r.best_abund - best_abund)) + "$ (" + _line_id(r.region.lab_wav) + ")")
+            plot_region(r, obs_pad = 5.5)
+    
     
     # *** Plot the mosaic of the observed lines in the regions
     if False:
@@ -386,6 +396,9 @@ def plot_stuff(result_pair):
     if False:
         for r in result_chi.region_result:
             plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")(r)
+
+def _line_id(lab_wav):
+    return "Fe I $\\lambda$ ${:0.4f}$".format(lab_wav)
 
 def _calc_vel(delta_lambda, lambda_em):
     """
@@ -1874,7 +1887,8 @@ def plot_region_mosaic(regions, rows, columns, figsize = None):
     
     # Function used to plot a single cell
     def plot_cell(ax, r):
-        ax.set_title("Fe I $\\lambda$ ${:0.4f}".format(r.lab_wav) + "$", fontsize = 8)
+#        ax.set_title("Fe I $\\lambda$ ${:0.4f}".format(r.lab_wav) + "$", fontsize = 8)
+        ax.set_title(_line_id(r.lab_wav), fontsize = 8)
         ax.set_ylim([0,1.10])
         ax.plot(r.wav, r.inten, color = "blue")
     

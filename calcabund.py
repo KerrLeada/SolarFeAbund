@@ -31,6 +31,11 @@ if _MODE_BAD_MODEL_FILE:
     print("************* USING THE BAD MODEL FILE *************")
     print("****************************************************\n")
 
+if _MODE_MODIFIED_LINES:
+    print("************************************************")
+    print("************* USING MODIFIED LINES *************")
+    print("************************************************\n")
+
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
 
