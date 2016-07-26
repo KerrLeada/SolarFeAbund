@@ -85,10 +85,10 @@ def plot_stuff(result_pair):
         regres = result_chi.region_result
         best_abund = result_chi.abund
         regres = sorted(regres, key = lambda rr: abs(rr.best_abund - best_abund))
-        for r in regres:
-            _plt.title("$| \\Delta " + _LOG_ABUND_CONV + " | = " + str(abs(r.best_abund - best_abund)) + "$ (" + _line_id(r.region.lab_wav) + ")")
-            plot_region(r, obs_pad = 5.5)
-    
+        rrspec = {8: 11.11}
+        for i, r in enumerate(regres):
+            _plt.title("Nr " + str(i) + "  $| \\Delta " + _LOG_ABUND_CONV + " | = " + str(abs(r.best_abund - best_abund)) + "$ (" + _line_id(r.region.lab_wav) + ")")
+            plot_region(r, obs_pad = rrspec.get(i, 5.75))
     
     # *** Plot the mosaic of the observed lines in the regions
     if False:

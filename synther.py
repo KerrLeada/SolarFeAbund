@@ -745,7 +745,7 @@ def _fit_regions_chi(regions, wav, synth_data, abunds, verbose):
     # Display some information, if in verbose mode
     if verbose:
         print("Number of shifts: ", nshift)
-        print("Shift step length:", shift[1]-shift[0])
+        print("Shift step length:", shift[1] - shift[0])
     
     # Take current time again, this time to time the fitting phase
     start_time = time.time()

@@ -29,7 +29,7 @@ def display(result_pair):
 #    doppler_vels = [_calc_vel(r.best_shift, r.wav[np.argmin(r.inten[r.best_index])]) for r in result_chi.region_result]
     doppler_vels = [_calc_vel(r.best_shift, r.region.lab_wav) for r in result_chi.region_result]
     chi2 = result_chi.minimized_quantity
-    print(latexgen.gen_table([lines, numbers(_abund(result_chi.best_abunds), fmt = "{:0.3f}"), numbers(best_shifts, fmt = "{:0.3f}"), doppler_vels, chi2], number_fmt = "{:0.4f}"))
+    print(latexgen.gen_table([lines, numbers(_abund(result_chi.best_abunds), fmt = "{:0.3f}"), , numbers(best_shifts, fmt = "{:0.3f}"), doppler_vels, chi2], number_fmt = "{:0.4f}"))
     
     # Generating the table for the results obtained using equivalent widths
     print("\n\nLatex table: equivalent widths")
@@ -81,6 +81,69 @@ def print_best(result_pair):
         print("    Min abund: ", min(_abund(result.best_abunds)), "     or:", min(result.best_abunds), "(as -12 + min abund)")
         print("    Max abund: ", max(_abund(result.best_abunds)), "     or:", max(result.best_abunds), "(as -12 + max abund)")
         print("    Mean abund:", _abund(result.abund), "+-", result.error_abund, "     or:", result.abund, "+-", result.error_abund, "(as -12 + mean abund)")
+
+def list_best(result, show_together = True):
+    # Get the results
+    result_chi = result.result_chi
+    result_ew = result.result_ew
+    
+    # Create the rows for the result from chi squared
+    regres_chi = [(i, rr.region.lab_wav, abs(rr.best_abund - result_chi.abund)) for i, rr in enumerate(result_chi.region_result)]
+    regres_chi = sorted(regres_chi, key = lambda rr: rr[2])
+    table_chi = []
+    for i, lab_wav, diffabund in regres_chi:
+        i_str = str(i) if i >= 10 else " " + str(i)
+        table_chi.append("| " + i_str + "  |  {:0.4f}  |            {:0.3f} |".format(lab_wav, diffabund))
+    
+    # Create the rows for the result from equivalent widths
+    regres_ew = [(i, rr.region.lab_wav, abs(rr.best_abund - result_ew.abund)) for i, rr in enumerate(result_ew.region_result)]
+    regres_ew = sorted(regres_ew, key = lambda rr: rr[2])
+    table_ew = []
+    for i, lab_wav, diffabund in regres_ew:
+        i_str = str(i) if i >= 10 else " " + str(i)
+        table_ew.append("| " + i_str + "  |  {:0.4f}  |           {:0.4f} |".format(lab_wav, diffabund))
+    
+    # Create the horizontal bars, titles and column names
+    hbar = "----------------------------------------"
+    title_chi = "|             Chi squared              |"
+    title_ew = "|          Equivalent widths           |"
+    colnames = "| Nr  |  wav        |  abs(abund diff) |"
+    
+    # Determine if the results should be shown side by side or one after another, and print the results in the
+    # appropriate way
+    if show_together:
+        # Print the results from chi squared to the left and the results from equivalent widths to the right
+#        spaces = " "*(len(colnames) + 11 - len(table_chi[0]))
+        print(hbar + "           " + hbar)
+        print(title_chi + "           " + title_ew)
+        print(hbar + "           " + hbar)
+        print(colnames + "           " + colnames)
+        print(hbar + "           " + hbar)
+        for rc, re in zip(table_chi, table_ew):
+#            print(rc + spaces + re)
+            print(rc + "           " + re)
+        print(hbar + "           " + hbar)
+    else:
+        # Print the chi squared result
+        print(hbar)
+        print(title_chi)
+        print(hbar)
+        print(colnames)
+        print(hbar)
+        for rc in table_chi:
+            print(rc)
+        print(hbar)
+        
+        # Print the equivalent width result
+        print("")
+        print(hbar)
+        print(title_ew)
+        print(hbar)
+        print(colnames)
+        print(hbar)
+        for re in table_ew:
+            print(re)
+        print(hbar)
 
 def _abund(abund):
     """

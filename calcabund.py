@@ -25,6 +25,7 @@ _MODE_SHOW_REGIONS = False
 _MODE_VERBOSE = True
 _MODE_BAD_MODEL_FILE = False
 _MODE_MODIFIED_LINES = False
+_MODE_USE_WIDE_REGIONS = False
 
 if _MODE_BAD_MODEL_FILE:
     print("****************************************************")
@@ -35,6 +36,11 @@ if _MODE_MODIFIED_LINES:
     print("************************************************")
     print("************* USING MODIFIED LINES *************")
     print("************************************************\n")
+
+if _MODE_USE_WIDE_REGIONS:
+    print("**********************************************")
+    print("************* USING WIDE REGIONS *************")
+    print("**********************************************\n")
 
 # Get lightspeed in the correct units
 lightspeed = astropy.constants.c.to(astropy.units.km / astropy.units.s).value
@@ -49,7 +55,7 @@ MODEL_FILE = synther.DEFAULT_MODEL_FILE if not _MODE_BAD_MODEL_FILE else "data/f
 at = sa.satlas()
 
 # Get the regions
-regions = regfile.get_regions()
+regions = regfile.get_regions() if not _MODE_USE_WIDE_REGIONS else regfile.get_wide_regions()
 
 def _print_regions():
     """
@@ -174,6 +180,13 @@ def plot_mosaic2(rows, columns, plot_func, *args, **kwargs):
     results = [result_chi.region_result, result_ew.region_result]
     plotting.plot_mosaic(results, rows, columns, plot_func, *args, **kwargs)
 
+def plot_stuff():
+    """
+    Calls plotting.plot_stuff with the result object
+    """
+    
+    plotting.plot_stuff(result)
+
 def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     """
     Counts the number of data points in wav between lambda0 and lambda_end. If wav is not given, the data from the
@@ -202,6 +215,8 @@ print("Bad model used:", _MODE_BAD_MODEL_FILE)
 print("")
 print("Used cfg file: ", CFG_FILE)
 print("Modified lines:", _MODE_MODIFIED_LINES)
+print("")
+print("Use wide regions:", _MODE_USE_WIDE_REGIONS)
 
 # Final reminder of where the results are stored
 print("")
