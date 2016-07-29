@@ -18,17 +18,39 @@ import bisect
 import ewutils
 import astropy.units
 
-def plot_stuff(result_pair):
+def plot_stuff(result_pair, result_adpert = None):
     """
     This function plots arbitrary stuff. It is not always constant what it does, since
-    it might be edited. It takes a single argument
+    it might be edited. It takes a single required argument
     
-        result_pair : An instance of ResultPair that contains the result of a calculation.
+        result_pair   : An instance of ResultPair that contains the result of a calculation.
+    
+    There is also an optional argument, namely
+    
+        result_adpert : A list of ResultPair instances, containing the results of calculations where log(gf) has been pertubed.
+                        If None, nothing happens.
+                        Default is None.
     """
     
     result_chi = result_pair.result_chi
     result_ew = result_pair.result_ew
     regions = [r.region for r in result_chi.region_result]
+    
+    # *** Plot how the shift and equivalent width relate to each other
+    if False:
+        shifts = [1e3*r.best_shift for r in result_chi.region_result]
+        ews = [r.best_eq_width for r in result_ew.region_result]
+        _plt.plot(ews, shifts, ".")
+        _plt.ylabel(u"Shift [mÅ]", fontsize = plot_font_size)
+        _plt.xlabel("EW [" + str(result_ew.region_result[0].eq_width_unit) + "]", fontsize = plot_font_size)
+        _plt.show()
+    
+    # *** Plot how the abundance is effected by pertubations of log(gf)
+    if False and result_adpert != None:
+        pert = np.array([-0.005, -0.002, -0.001, 0.0, 0.001, 0.002, 0.005, 0.010, 0.050, 0.100])
+        pert_abund = np.array([r.result_chi.region_result[0].best_abund for r in result_adpert])
+        _plt.plot(pert, _abund(pert_abund))
+        _plt.show()
     
     # *** Plot how equivalent widths converges
     if False:
@@ -81,7 +103,7 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # ***
-    if True:
+    if False:
         regres = result_chi.region_result
         best_abund = result_chi.abund
         regres = sorted(regres, key = lambda rr: abs(rr.best_abund - best_abund))

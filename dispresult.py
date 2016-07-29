@@ -29,7 +29,7 @@ def display(result_pair):
 #    doppler_vels = [_calc_vel(r.best_shift, r.wav[np.argmin(r.inten[r.best_index])]) for r in result_chi.region_result]
     doppler_vels = [_calc_vel(r.best_shift, r.region.lab_wav) for r in result_chi.region_result]
     chi2 = result_chi.minimized_quantity
-    print(latexgen.gen_table([lines, numbers(_abund(result_chi.best_abunds), fmt = "{:0.3f}"), , numbers(best_shifts, fmt = "{:0.3f}"), doppler_vels, chi2], number_fmt = "{:0.4f}"))
+    print(latexgen.gen_table([lines, numbers(_abund(result_chi.best_abunds), fmt = "{:0.3f}"), numbers(best_shifts, fmt = "{:0.3f}"), doppler_vels, chi2], number_fmt = "{:0.4f}"))
     
     # Generating the table for the results obtained using equivalent widths
     print("\n\nLatex table: equivalent widths")
