@@ -18,18 +18,45 @@ import bisect
 import ewutils
 import astropy.units
 
-def plot_stuff(result_pair, result_adpert = None):
+def plot_pert(pertubations, results):
+    results_chi = [r.result_chi for r in results]
+    results_ew = [r.result_ew for r in results]
+    regions = [r.region for r in results_chi[0].region_result]
+
+    # Sets the currently used results object
+    # Allows easy switching between results_chi and results_ew
+    results_curr = results_chi
+    
+    # *** Show the effects on the abundance of each individual line, together
+    if True:
+        _plt.figure(figsize = (5, 3))
+        lbls = []
+        for i in range(len(results_curr[0].region_result)):
+            abunds = [r.region_result[i].best_abund for r in results_curr]
+            curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(r.region_result[i].region.lab_wav) + "$")
+            lbls.append(curr_lbl[0])
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$")
+        _plt.ylabel("$\\log A$")
+        _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False)
+        _plt.tight_layout()
+        _plt.show()
+        
+    # *** Show the effects on the mean abundance
+    if False:
+        _plt.figure(figsize = (6, 4))
+        abunds = [r.abund for r in results_curr]
+        _plt.plot(pertubations, _abund(abunds))
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$")
+        _plt.ylabel("$\\log A$")
+        _plt.tight_layout()
+        _plt.show()
+
+def plot_stuff(result_pair):
     """
     This function plots arbitrary stuff. It is not always constant what it does, since
     it might be edited. It takes a single required argument
     
         result_pair   : An instance of ResultPair that contains the result of a calculation.
-    
-    There is also an optional argument, namely
-    
-        result_adpert : A list of ResultPair instances, containing the results of calculations where log(gf) has been pertubed.
-                        If None, nothing happens.
-                        Default is None.
     """
     
     result_chi = result_pair.result_chi
@@ -43,13 +70,6 @@ def plot_stuff(result_pair, result_adpert = None):
         _plt.plot(ews, shifts, ".")
         _plt.ylabel(u"Shift [mÅ]", fontsize = plot_font_size)
         _plt.xlabel("EW [" + str(result_ew.region_result[0].eq_width_unit) + "]", fontsize = plot_font_size)
-        _plt.show()
-    
-    # *** Plot how the abundance is effected by pertubations of log(gf)
-    if False and result_adpert != None:
-        pert = np.array([-0.005, -0.002, -0.001, 0.0, 0.001, 0.002, 0.005, 0.010, 0.050, 0.100])
-        pert_abund = np.array([r.result_chi.region_result[0].best_abund for r in result_adpert])
-        _plt.plot(pert, _abund(pert_abund))
         _plt.show()
     
     # *** Plot how equivalent widths converges
@@ -489,6 +509,8 @@ def _abund(abund):
     Determines the convension for abundance numbers
     """
     
+    if isinstance(abund, list):
+        abund = np.array(abund)
     return 12.0 + abund
 
 def partial(func, *args, **kwargs):

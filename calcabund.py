@@ -26,7 +26,6 @@ _MODE_VERBOSE = True
 _MODE_BAD_MODEL_FILE = False
 _MODE_MODIFIED_LINES = False
 _MODE_USE_WIDE_REGIONS = False
-_MODE_PERT_ATOMIC_DATA = False
 
 if _MODE_BAD_MODEL_FILE:
     print("****************************************************")
@@ -134,7 +133,6 @@ def test_loggf():
     for cf in cfg_files:
         result.append(synther.fit_spectrum("data/testloggf/" + cf + ".cfg", at, region_list, abunds, model_file = MODEL_FILE, verbose = _MODE_VERBOSE))
     return result
-result_adpert = test_loggf() if _MODE_PERT_ATOMIC_DATA else None
 
 def display():
     dispresult.display(result)
@@ -195,7 +193,7 @@ def plot_stuff():
     Calls plotting.plot_stuff with the result object
     """
     
-    plotting.plot_stuff(result, result_adpert)
+    plotting.plot_stuff(result)
 
 def countpts(lambda0, lambda_end, wav = None, padding = 0.0):
     """
@@ -227,7 +225,6 @@ print("Used cfg file: ", CFG_FILE)
 print("Modified lines:", _MODE_MODIFIED_LINES)
 print("")
 print("Use wide regions:", _MODE_USE_WIDE_REGIONS)
-print("Pertubing loggf: ", _MODE_PERT_ATOMIC_DATA, "     <----- If True, the result is a list of results stored in the 'result_adpert' variable.")
 
 # Final reminder of where the results are stored
 print("")
