@@ -25,29 +25,54 @@ def plot_pert(pertubations, results):
 
     # Sets the currently used results object
     # Allows easy switching between results_chi and results_ew
-    results_curr = results_chi
+    results_curr = results_ew
     
     # *** Show the effects on the abundance of each individual line, together
-    if True:
-        _plt.figure(figsize = (5, 3))
+    if False:
+        _plt.figure(figsize = (6, 3))
         lbls = []
         for i in range(len(results_curr[0].region_result)):
             abunds = [r.region_result[i].best_abund for r in results_curr]
-            curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(r.region_result[i].region.lab_wav) + "$")
+            curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[i].region.lab_wav) + "$")
             lbls.append(curr_lbl[0])
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$")
-        _plt.ylabel("$\\log A$")
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
         _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False)
         _plt.tight_layout()
         _plt.show()
-        
+    
+    # *** Show the effects on the abundance of a single line
+    if True:
+        _plt.figure(figsize = (6, 3))
+        abunds = [r.region_result[0].best_abund for r in results_curr]
+#        lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[0].region.lab_wav) + "$")
+        _plt.plot(pertubations, _abund(abunds))
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+#        _plt.legend(handles = [lbl[0]], fontsize = legend_font_size, frameon = False)
+        _plt.tight_layout()
+        _plt.show()
+    
     # *** Show the effects on the mean abundance
     if False:
-        _plt.figure(figsize = (6, 4))
+        _plt.figure(figsize = (6, 3))
         abunds = [r.abund for r in results_curr]
         _plt.plot(pertubations, _abund(abunds))
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$")
-        _plt.ylabel("$\\log A$")
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Show the effects on the abundance of a single line, comparing the results obtained through chi squared and equivalent widths
+    if False:
+        _plt.figure(figsize = (6, 3))
+        abunds_chi = [r.region_result[0].best_abund for r in results_chi]
+        abunds_ew = [r.region_result[0].best_abund for r in results_ew]
+        lbl_chi = _plt.loglog(pertubations, _abund(abunds_chi), label = "$\\chi^2$")
+        lbl_ew = _plt.loglog(pertubations, _abund(abunds_ew), label = "$EW$")
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+        _plt.legend(handles = [lbl_chi[0], lbl_ew[0]], fontsize = legend_font_size, frameon = False)
         _plt.tight_layout()
         _plt.show()
 

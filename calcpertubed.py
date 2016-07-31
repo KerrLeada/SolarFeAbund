@@ -32,10 +32,11 @@ def gen_cfg_files(pertubations, decimals = 5):
             curr_file.write("FeI_6498    Fe    1    26    6498.9379  " + str(-4.699 + np.round(p, decimals = decimals)) + "   3.0    3.0    1.250   1.510   0.9582   4.430    -6.210    226.253   1.0\n")
     return pertubations, files
 
-pertubations, files = gen_cfg_files(np.arange(-0.2, 0.25, step = 0.05))
+pertubations, files = gen_cfg_files(np.arange(-0.20, 0.25, step = 0.05))
 
 at = sa.satlas()
-abunds = -np.arange(4.1, 4.8, step = 0.001)
+#abunds = -np.arange(4.1, 4.8, step = 0.005)
+#abunds = -np.arange(3.3, 4.6, step = 0.005)
 region_list = [r for r in regfile.get_regions() if r.lab_wav in _REGION_LAB_WAV]
 
 results = []
