@@ -28,27 +28,28 @@ def plot_pert(pertubations, results):
     results_curr = results_ew
     
     # *** Show the effects on the abundance of each individual line, together
-    if False:
+    if True:
         _plt.figure(figsize = (6, 3))
         lbls = []
         for i in range(len(results_curr[0].region_result)):
             abunds = [r.region_result[i].best_abund for r in results_curr]
             curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[i].region.lab_wav) + "$")
             lbls.append(curr_lbl[0])
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.xlabel("Pertubation", fontsize = plot_font_size)
         _plt.ylabel("$\\log A$", fontsize = plot_font_size)
-        _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False)
+        _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False, loc = 4)
         _plt.tight_layout()
         _plt.show()
     
     # *** Show the effects on the abundance of a single line
-    if True:
+    if False:
         _plt.figure(figsize = (6, 3))
         abunds = [r.region_result[0].best_abund for r in results_curr]
 #        lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[0].region.lab_wav) + "$")
         _plt.plot(pertubations, _abund(abunds))
         _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
         _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+#        _plt.xticks(pertubations[::2])
 #        _plt.legend(handles = [lbl[0]], fontsize = legend_font_size, frameon = False)
         _plt.tight_layout()
         _plt.show()
