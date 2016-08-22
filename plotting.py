@@ -353,7 +353,7 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # *** Show the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
-    if True:
+    if False:
         # Get the data
         data_unordered = [(r_chi.best_abund - r_ew.best_abund, r_chi, r_ew) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         abund_diffs, region_result_chi, region_result_ew = zip(*sorted(data_unordered, key = lambda x: x[0]))
