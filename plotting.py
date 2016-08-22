@@ -11,71 +11,13 @@ import numpy as np
 import matplotlib.pyplot as _plt
 import matplotlib.ticker as ticker
 import matplotlib.colors
+import matplotlib
 import abundutils as _au
 import satlas as _sa
 import scipy.interpolate as si
 import bisect
 import ewutils
 import astropy.units
-
-def plot_pert(pertubations, results):
-    results_chi = [r.result_chi for r in results]
-    results_ew = [r.result_ew for r in results]
-    regions = [r.region for r in results_chi[0].region_result]
-
-    # Sets the currently used results object
-    # Allows easy switching between results_chi and results_ew
-    results_curr = results_ew
-    
-    # *** Show the effects on the abundance of each individual line, together
-    if True:
-        _plt.figure(figsize = (6, 3))
-        lbls = []
-        for i in range(len(results_curr[0].region_result)):
-            abunds = [r.region_result[i].best_abund for r in results_curr]
-            curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[i].region.lab_wav) + "$")
-            lbls.append(curr_lbl[0])
-        _plt.xlabel("Pertubation", fontsize = plot_font_size)
-        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
-        _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False, loc = 4)
-        _plt.tight_layout()
-        _plt.show()
-    
-    # *** Show the effects on the abundance of a single line
-    if False:
-        _plt.figure(figsize = (6, 3))
-        abunds = [r.region_result[0].best_abund for r in results_curr]
-#        lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[0].region.lab_wav) + "$")
-        _plt.plot(pertubations, _abund(abunds))
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
-        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
-#        _plt.xticks(pertubations[::2])
-#        _plt.legend(handles = [lbl[0]], fontsize = legend_font_size, frameon = False)
-        _plt.tight_layout()
-        _plt.show()
-    
-    # *** Show the effects on the mean abundance
-    if False:
-        _plt.figure(figsize = (6, 3))
-        abunds = [r.abund for r in results_curr]
-        _plt.plot(pertubations, _abund(abunds))
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
-        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
-        _plt.tight_layout()
-        _plt.show()
-    
-    # *** Show the effects on the abundance of a single line, comparing the results obtained through chi squared and equivalent widths
-    if False:
-        _plt.figure(figsize = (6, 3))
-        abunds_chi = [r.region_result[0].best_abund for r in results_chi]
-        abunds_ew = [r.region_result[0].best_abund for r in results_ew]
-        lbl_chi = _plt.loglog(pertubations, _abund(abunds_chi), label = "$\\chi^2$")
-        lbl_ew = _plt.loglog(pertubations, _abund(abunds_ew), label = "$EW$")
-        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
-        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
-        _plt.legend(handles = [lbl_chi[0], lbl_ew[0]], fontsize = legend_font_size, frameon = False)
-        _plt.tight_layout()
-        _plt.show()
 
 def plot_stuff(result_pair):
     """
@@ -88,6 +30,7 @@ def plot_stuff(result_pair):
     result_chi = result_pair.result_chi
     result_ew = result_pair.result_ew
     regions = [r.region for r in result_chi.region_result]
+    regions_sorted = sorted(regions, key = lambda r: r.lab_wav)
     
     # *** Plot how the shift and equivalent width relate to each other
     if False:
@@ -160,11 +103,11 @@ def plot_stuff(result_pair):
     
     # *** Plot the mosaic of the observed lines in the regions
     if False:
-        plot_region_mosaic(regions, 3, 5, figsize = (6, 5))
+        plot_region_mosaic(regions_sorted, 3, 5, figsize = (6, 5))
     
     # *** Plots the effects of macroturbulance... specifically it shows up the effects of convolving the synthetic spectrum
     if False:
-        plot_macroturb(result_chi.region_result[3], xticks = 5, yticks = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], figsize = (4, 3))
+        plot_macroturb(result_chi.region_result[3], xticks = 5, yticks = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], figsize = (5, 3))
     
     # *** Plots the effects of shifts and how the chi squared changes with shifts, for a particular region
     if False:
@@ -283,10 +226,10 @@ def plot_stuff(result_pair):
         plot_region(result_chi.region_result[11], obs_last = True, xticks = 7)
     
     # *** Plots the first 8 lines together
-    if False:
-        plot_mosaic(result_chi.region_result[:8], 4, 2, partial(plot_region, xticks = 3), figsize = (6,9))
+#    if False:
+#        plot_mosaic(result_chi.region_result[:8], 4, 2, partial(plot_region, xticks = 3), figsize = (6,9))
     
-    # *** Plots the rest of the lines together
+    # *** Plots the lines (both observed and synthetic) together
     if False:
         def plotfunc(region_result, figure_axes = None):
             #if np.array_equal(region_result.region.wav, result_chi.region_result[-1].region.wav):
@@ -294,7 +237,9 @@ def plot_stuff(result_pair):
                 plot_region(region_result, xticks = 3, xlim = (5232.13, 5234.12), figure_axes = figure_axes)
             else:
                 plot_region(region_result, xticks = 3, figure_axes = figure_axes)
-        plot_mosaic(result_chi.region_result[8:], 4, 2, plotfunc, figsize = (6,9))
+        rr_chi = sorted(result_chi.region_result, key = lambda r: r.region.lab_wav)
+        plot_mosaic(rr_chi[:8], 4, 2, plotfunc, figsize = (6,9))
+        plot_mosaic(rr_chi[8:], 4, 2, plotfunc, figsize = (6,9))
     
     # *** Plots the bisector of the line at approximately 6302 Å (both for the observed and synthetic spectra)
     if False:
@@ -341,7 +286,7 @@ def plot_stuff(result_pair):
         _plt.figure(figsize = (3,3))
         plot_bisector(regres.region.wav, regres.region.inten, xy_args = options(color = "blue"), xticks = 3, xlabel = u"Wavelength [Å]", ylabel = "Normalized intensity", xfmt = "%0.2f", xlim = (6301.48, 6301.50), ylim = (0.3, 1.0), color = "blue")
     
-    # *** Plots the bisector of a line (both for the observed and synthetic spectra)
+    # *** Plots the bisector of line with wavelength approximately 6301 Å (both for the observed and synthetic spectra)
     if False:
         _plt.figure(figsize = (5,3))
         regres = result_chi.region_result[0]
@@ -382,7 +327,7 @@ def plot_stuff(result_pair):
         rwav, abund_diff = map(np.array, zip(*data_diffs))
         
         # Plot the differences
-        _plt.figure(figsize = (4, 3))
+        _plt.figure(figsize = (5, 3))
         _plt.plot(rwav, abund_diff, ".")
         _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
         _plt.ylabel("$\\Delta " + _LOG_ABUND_CONV + "$", fontsize = plot_font_size)
@@ -391,7 +336,7 @@ def plot_stuff(result_pair):
         _plt.tight_layout()
         _plt.show()
     
-    # ***
+    # *** (NOT USED)
     if False:
         data_unordered = [(r_ew.obs_eq_width, r_chi.best_abund - r_ew.best_abund) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         data_diffs = sorted(data_unordered, key = lambda x: x[0])
@@ -408,14 +353,14 @@ def plot_stuff(result_pair):
         _plt.show()
     
     # *** Show the difference in abundance between the best synthetic lines obtained by chi squared and equivalent widths
-    if False:
+    if True:
         # Get the data
         data_unordered = [(r_chi.best_abund - r_ew.best_abund, r_chi, r_ew) for r_chi, r_ew in zip(result_chi.region_result, result_ew.region_result)]
         abund_diffs, region_result_chi, region_result_ew = zip(*sorted(data_unordered, key = lambda x: x[0]))
 
         # Loop throw a number of lines and plot the best synthetic lines obtained by chi squared and equivalent widths
         number_of_lines = 1
-        offset = -1
+        offset = 0
         show_around = 0
         show_unzoomed = False
         for ai in range(number_of_lines):
@@ -438,16 +383,18 @@ def plot_stuff(result_pair):
             
             # The the minimum and maximum wavelengths
             wav_min, wav_max = min([rwav[0], regres_chi.wav[0], regres_ew.wav[0]]), max([rwav[-1], regres_chi.wav[-1], regres_ew.wav[-1]])
+            inten_min = min([min(ointen), min(regres_chi.best_inten), min(regres_ew.best_inten)])
             
             # Plot the difference
-            _plt.figure(figsize = (6,5))
-            lbl_obs = _plt.plot(owav, ointen, color = "blue", alpha = 0.45, linestyle = "-", label = "FTS atlas")
+            _plt.figure(figsize = (5,3))
+            #lbl_obs = _plt.plot(owav, ointen, color = "blue", alpha = 0.45, linestyle = "-", label = "FTS atlas")
+            lbl_obs = _plt.plot(owav, ointen, color = "blue", linestyle = "--", label = "FTS atlas")
             lbl_chi = _plt.plot(regres_chi.wav, regres_chi.best_inten, color = "red", label = "$\\chi^2$")
             lbl_ew = _plt.plot(regres_ew.wav - regres_chi.best_shift, regres_ew.best_inten, color = "green", label = "$EW$")
             legend_labels = [lbl_obs[0], lbl_chi[0], lbl_ew[0]]
             _plt.xlim(wav_min, wav_max)
-            _plt.ylim(0.0, 1.05)
-#            _plt.xticks(np.linspace(wav_min, wav_max, num = 7))
+            _plt.ylim(max(inten_min - 0.05, 0), 1.05)
+            _plt.xticks(np.linspace(wav_min, wav_max, num = 5))
             _plt.xlabel(u"Wavelength [Å]", fontsize = plot_font_size)
             _plt.ylabel("Normalized intensity", fontsize = plot_font_size)
             _plt.legend(handles = legend_labels, loc = 4, frameon = False, fontsize = legend_font_size)
@@ -464,6 +411,65 @@ def plot_stuff(result_pair):
     if False:
         for r in result_chi.region_result:
             plot_vs(lambda r: (_abund(r.abund), r.chisq), xlabel = "$" + _LOG_ABUND_CONV + "$", ylabel = "$\\chi^2$", xlim = (7.2, 7.7), xfmt = "%0.1f")(r)
+
+def plot_pert(pertubations, results):
+    results_chi = [r.result_chi for r in results]
+    results_ew = [r.result_ew for r in results]
+    regions = [r.region for r in results_chi[0].region_result]
+
+    # Sets the currently used results object
+    # Allows easy switching between results_chi and results_ew
+    results_curr = results_ew
+    
+    # *** Show the effects on the abundance of each individual line, together
+    if False:
+        _plt.figure(figsize = (6, 3))
+        lbls = []
+        for i in range(len(results_curr[0].region_result)):
+            abunds = [r.region_result[i].best_abund for r in results_curr]
+            curr_lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[i].region.lab_wav) + "$")
+            lbls.append(curr_lbl[0])
+        _plt.xlabel("Pertubation", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+        _plt.legend(handles = lbls, fontsize = legend_font_size, frameon = False, loc = 4)
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Show the effects on the abundance of a single line
+    if False:
+        _plt.figure(figsize = (5, 3))
+        abunds = [r.region_result[0].best_abund for r in results_curr]
+#        lbl = _plt.plot(pertubations, _abund(abunds), label = "Fe I $\\lambda$ $" + str(results_curr[0].region_result[0].region.lab_wav) + "$")
+        _plt.plot(pertubations, _abund(abunds))
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+#        _plt.xticks(pertubations[::2])
+#        _plt.legend(handles = [lbl[0]], fontsize = legend_font_size, frameon = False)
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Show the effects on the mean abundance
+    if False:
+        _plt.figure(figsize = (6, 3))
+        abunds = [r.abund for r in results_curr]
+        _plt.plot(pertubations, _abund(abunds))
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+        _plt.tight_layout()
+        _plt.show()
+    
+    # *** Show the effects on the abundance of a single line, comparing the results obtained through chi squared and equivalent widths
+    if False:
+        _plt.figure(figsize = (6, 3))
+        abunds_chi = [r.region_result[0].best_abund for r in results_chi]
+        abunds_ew = [r.region_result[0].best_abund for r in results_ew]
+        lbl_chi = _plt.loglog(pertubations, _abund(abunds_chi), label = "$\\chi^2$")
+        lbl_ew = _plt.loglog(pertubations, _abund(abunds_ew), label = "$EW$")
+        _plt.xlabel("Pertubation $\\Delta \\log(gf)$", fontsize = plot_font_size)
+        _plt.ylabel("$\\log A$", fontsize = plot_font_size)
+        _plt.legend(handles = [lbl_chi[0], lbl_ew[0]], fontsize = legend_font_size, frameon = False)
+        _plt.tight_layout()
+        _plt.show()
 
 def _line_id(lab_wav):
     return "Fe I $\\lambda$ ${:0.4f}$".format(lab_wav)
@@ -492,8 +498,20 @@ title_font_size = plot_font_size
 legend_font_size = 8
 
 # Set the font to the default
-_plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"]})
-_plt.rcParams.update({"font.size": plot_font_size})
+def init_plot_font():
+    print("\n\n*************** Setting font ***************")
+    _plt.rc("font", **{"family": u"sans-serif", u"sans-serif": [u"Helvetica"], "size": plot_font_size})
+    _plt.rc("text", usetex = True)
+    _plt.rc("text.latex", **{"preamble": [u"\\usepackage{helvet}\\usepackage{sfmath}"], "unicode": True})
+#    _plt.rc("text.latex", **{"preamble": [u"\\usepackage{helvet}\\usepackage{sfmath}"], "unicode": True})
+#    _plt.rcParams.update({"font.size": plot_font_size})
+    print("*************** Font set ***************\n\n")
+    #matplotlib.rc("font", **{u"sans-serif": [u"Arial"], u"style": u"normal", u"family": u"sans", u"size": plot_font_size})
+    #matplotlib.rc("font", **{u"sans-serif": [u"Helvetica"], u"style": u"normal", u"family": u"sans", u"size": plot_font_size})
+    #matplotlib.rc("text", usetex = True)
+    #matplotlib.rc("text.latex", **{"preamble": [u"\\usepackage{helvet}\\usepackage{sfmath}"], "unicode": True})
+    #matplotlib.rcParams["text.latex.unicode"] = True
+init_plot_font()
 
 # The figure size (in inches) of some functions
 plot_figure_size = (7, 7)
@@ -585,20 +603,20 @@ def _get_figure_axes(figure_axes):
     axis object will be returned. Otherwise, figure_axes will be returned.
     """
     
-    if figure_axes == None:
+    if figure_axes is None:
         figure_axes = _plt.gca()
     return figure_axes
 
 def _adjust_ticks(setter, ax, ticks, curr_ticks, limits, error_message):
     if isinstance(ticks, int) and ticks > 0:
-        if None == limits:
+        if limits is None:
             limits = (curr_ticks[0], curr_ticks[-1])
         setter(np.linspace(limits[0], limits[1], num = ticks))
     elif hasattr(ticks, "__call__"):
-        if None != limits:
+        if limits is not None:
             curr_ticks = curr_ticks[(limits[0] <= curr_ticks) & (curr_ticks <= limits[1])]
         setter(ticks(curr_ticks))
-    elif None != ticks:
+    elif ticks is not None:
         try:
             setter(ticks)
         except:
@@ -617,7 +635,7 @@ def _filter_abund(abund_filter, abund, inten):
     """
     
     # Filter out abundances
-    if None != abund_filter:
+    if abund_filter is not None:
         if hasattr(abund_filter, "__call__"):
             filtered = np.array([[a, i] for ai, (a, i) in enumerate(zip(abund, inten)) if abund_filter(ai, a, i)])
             abund = filtered[:,0]
@@ -704,7 +722,7 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
     """
     
     # If no axes object was given, get the current one from _plt
-    if figure_axes == None:
+    if figure_axes is None:
         ax = _plt.gca()
     else:
         ax = figure_axes
@@ -712,7 +730,7 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
     # Plot the bisector    
     bx, by = bisect.get_bisector(x, y, ylim = blim, num = num)
     if plot_values:
-        if xy_args != None:
+        if xy_args is not None:
             args_vals, kwargs_vals = xy_args
             if "linestyle" not in kwargs_vals:
                 kwargs_vals["linestyle"] = "--"
@@ -725,15 +743,15 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
         plotted = ax.plot(bx, by, **kwargs)
 
     # Set the formattings of the x and y axis
-    if xfmt != None:
+    if xfmt is not None:
         ax.xaxis.set_major_formatter(ticker.FormatStrFormatter(xfmt))
-    if yfmt != None:
+    if yfmt is not None:
         ax.yaxis.set_major_formatter(ticker.FormatStrFormatter(yfmt))
     
     # Make sure there are always limits
-    if None == xlim:
+    if xlim is None:
         xlim = (min(x), max(x))
-    if None == ylim:
+    if ylim is None:
         ylim = (min(y) - 0.05, 1.1)
     
     # Adjust the ticks for the x and y axes
@@ -742,13 +760,13 @@ def plot_bisector(x, y, num = 50, xticks = None, yticks = None, xlim = None, yli
     # Set the limits and labels
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    if xlabel != None:
+    if xlabel is not None:
         ax.set_xlabel(xlabel)
-    if ylabel != None:
+    if ylabel is not None:
         ax.set_ylabel(ylabel)
 
     # If show is true and no axis object was given, show the plot    
-    if show and figure_axes == None:
+    if show and figure_axes is None:
         _plt.tight_layout()
         _plt.show()
     
@@ -774,7 +792,7 @@ def plot_compared(region_result, show_labels = True, abund_filter = None, figure
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
         
 
@@ -785,7 +803,7 @@ def plot_abund_compared(region_result, abund = None, show_labels = True, show_le
     # Get the axes object
     ax = _get_figure_axes(figure_axes)
     
-    if abund == None:
+    if abund is None:
         abund = region_result.best_index
     
     obs_wav = region_result.region.wav
@@ -801,7 +819,7 @@ def plot_abund_compared(region_result, abund = None, show_labels = True, show_le
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
 
 def plot_abund_compared2(region_result, linear_interp = False, abund = None, show_labels = True, show_legend = True, legend_pos = 4, figure_axes = None):
@@ -811,7 +829,7 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     # Get the axes object
     ax = _get_figure_axes(figure_axes)
     
-    if abund == None:
+    if abund is None:
         abund = region_result.best_index
     
     obs_wav = region_result.region.wav
@@ -833,7 +851,7 @@ def plot_abund_compared2(region_result, linear_interp = False, abund = None, sho
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
 
 def plot_shifted(region_result, show_labels = True, show_legend = True, legend_pos = 4, obs_pad = 0.0, abund_filter = None, xlim = None, ylim = None, xticks = None, yticks = None, figure_axes = None):
@@ -859,9 +877,9 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
     # Make sure there are always limits
-    if None == xlim:
+    if xlim is None:
         xlim = (min(wav[0], region_result.region.wav[0]), max(wav[-1], region_result.region.wav[-1]))
-    if None == ylim:
+    if ylim is None:
         ylim = (0.0, 1.1)
     
     # Adjust the x ticks
@@ -875,7 +893,7 @@ def plot_shifted(region_result, show_labels = True, show_legend = True, legend_p
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
         ax.legend(handles = [lbl_best[0], lbl_shifted[0], lbl_obs[0]], loc = legend_pos, fontsize = legend_font_size, frameon = False)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.tight_layout()
         _plt.show()
 
@@ -944,7 +962,7 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
 
     ax = _get_figure_axes(figure_axes)
     
-    if None == bins:
+    if bins is None:
         bins = _create_bins(values, delta)
     
     content = np.zeros(len(bins), dtype = np.float64)
@@ -957,7 +975,7 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
     bins, content = map(np.array, zip(*bin_data))
     
     # Set the bin width
-    if bin_width == None:
+    if bin_width is None:
         bin_width = min(bins[1:] - bins[:-1]) if len(bins) > 1 else 1
     elif hasattr(bin_width, "__call__"):
         bin_width = bin_width(bins)
@@ -969,15 +987,15 @@ def plot_hist(values, delta = 0.0, bins = None, bin_width = None, bin_comparator
     ax.set_xlim(bins[0] - 3.0*bin_width/4.0, bins[-1] + 3.0*bin_width/4.0)
     ax.set_ylim(0, max(content))
 
-    if None != xticks:
+    if xticks is not None:
         ax.set_xticks(_calc_ticks(ticks))
-    if None != yticks:
+    if yticks is not None:
         ax.set_yticks(_calc_ticks(ticks))
-    if xlabel != None:
+    if xlabel is not None:
         ax.set_xlabel(xlabel, fontsize = plot_font_size)
-    if ylabel != None:
+    if ylabel is not None:
         ax.set_ylabel(ylabel, fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.tight_layout()
         _plt.show()
 
@@ -1137,9 +1155,9 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
     
     # Make sure there are always limits
-    if None == xlim:
+    if xlim is None:
         xlim = (min(wav[0], rwav[0]), max(wav[-1], rwav[-1]))
-    if None == ylim:
+    if ylim is None:
         ylim = (0.0, 1.1)
     
     # Adjust the x ticks
@@ -1154,7 +1172,7 @@ def plot_region(region_result, offset = 0.0, show_abunds = False, show_labels = 
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
     if show_legend:
         ax.legend(handles = legend_labels, loc = legend_pos, fontsize = legend_font_size, frameon = False)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.tight_layout()
         _plt.show()
 
@@ -1217,21 +1235,21 @@ def plot_vs(func, xlabel = None, ylabel = None, xticks = None, yticks = None, xl
         x, y = func(region_result)
         ax.plot(x, y)
         
-        if xfmt != None:
+        if xfmt is not None:
             ax.xaxis.set_major_formatter(ticker.FormatStrFormatter(xfmt))
         
         # Adjust the ticks for the x and y axes
         _adjust_xyticks(ax, xticks, yticks)
         
-        if xlim != None:
+        if xlim is not None:
             ax.set_xlim(xlim)
-        if ylim != None:
+        if ylim is not None:
             ax.set_ylim(ylim)
-        if xlabel != None:
+        if xlabel is not None:
             ax.set_xlabel(xlabel, fontsize = plot_font_size)
-        if ylabel != None:
+        if ylabel is not None:
             ax.set_ylabel(ylabel, fontsize = plot_font_size)
-        if figure_axes == None:
+        if figure_axes is None:
             _plt.tight_layout()
             _plt.show()
     return plotting_func
@@ -1277,9 +1295,9 @@ def plot_vs_abund(abund, values, ylabel = None, xticks = None, yticks = None, fi
     _adjust_xyticks(ax, xticks, yticks)
     
     ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
-    if ylabel != None:
+    if ylabel is not None:
         ax.set_ylabel(ylabel, fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
 
 def plot_chisq(region_result, xticks = None, yticks = None, figure_axes = None):
@@ -1381,7 +1399,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
     if show_synth:
         # Get the wavelengths
         rwav = region_result.wav
-        if None == abund_filter:
+        if abund_filter is None:
             rinten_all = [region_result.best_inten]
             colors = ["red"]
         elif isinstance(abund_filter, (int, long)):
@@ -1407,9 +1425,9 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
     ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%0.2f"))
 
     # Make sure there are always limits
-    if None == xlim:
+    if xlim is None:
         xlim = (min(region_result.wav[0], region_result.region.wav[0]), max(region_result.wav[-1], region_result.region.wav[-1]))
-    if None == ylim:
+    if ylim is None:
         ylim = (0.0, 1.1)
 
     # Adjust the x ticks
@@ -1422,7 +1440,7 @@ def plot_bisect(region_result, offset = 0.0, show_observed = True, show_synth = 
     if show_labels:
         ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
         ax.set_ylabel("Normalized intensity", fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.tight_layout()
         _plt.show()
 
@@ -1491,11 +1509,11 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     """
     
     # Set the figure size
-    if None != figsize:
+    if figsize is not None:
         _plt.figure(figsize = figsize)
 
     # If the abundance index is None, set it to the index of the best fit abundance    
-    if None == abund_index:
+    if abund_index is None:
         abund_index = region_result.best_index
     
     # Get the intensities
@@ -1526,18 +1544,18 @@ def plot_macroturb(region_result, abund_index = None, show_obs = True, alpha_obs
     if isinstance(xticks, int) and xticks > 0:
         xticks = np.linspace(region_result.wav[0], region_result.wav[-1], num = xticks)
         _plt.xticks(xticks)
-    elif None != xticks:
+    elif xticks is not None:
         _plt.xticks(xticks)
     
     # Adjust the y ticks
     if isinstance(yticks, int) and yticks > 0:
         yticks = np.linspace(min_inten - 0.05, 1.1, num = yticks)
         _plt.yticks(yticks)
-    elif None != xticks:
+    elif yticks is not None:
         _plt.yticks(yticks)
     
     # Set the format of the x axis
-    if xticks_fmt != None:
+    if xticks_fmt is not None:
         _plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter(xticks_fmt))
     
     # Show the plot
@@ -1568,7 +1586,7 @@ def plot_abund(region_results, figure_axes = None):
                        Default is None.
     """
     
-    if figure_axes == None:
+    if figure_axes is None:
         ax = _plt.gca()
     else:
         ax = figure_axes
@@ -1580,7 +1598,7 @@ def plot_abund(region_results, figure_axes = None):
     ax.set_xlabel(u"Wavelength $\\lambda$ [Å]", fontsize = plot_font_size)
     ax.set_ylabel("Fe abundance", fontsize = plot_font_size)
     
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
 
 def abund_histogram(region_results, bins = 5, figure_axes = None):
@@ -1604,7 +1622,7 @@ def abund_histogram(region_results, bins = 5, figure_axes = None):
                        Default is None.
     """
     
-    if figure_axes == None:
+    if figure_axes is None:
         ax = _plt.gca()
     else:
         ax = figure_axes
@@ -1612,7 +1630,7 @@ def abund_histogram(region_results, bins = 5, figure_axes = None):
     abundances = np.array([_abund(r.best_abund) for r in region_results])
     ax.hist(abundances, bins = bins)
     ax.set_xlabel("Fe abundance", fontsize = plot_font_size)
-    if figure_axes == None:
+    if figure_axes is None:
         _plt.show()
 
 def dual_abund_histogram(result_chi, result_ew, bins = 5, xticks = None, yticks = None):
@@ -1647,9 +1665,9 @@ def dual_abund_histogram(result_chi, result_ew, bins = 5, xticks = None, yticks 
     # Plot the histograms
     for ax, r, t in zip(axes, results, titles):
         ax.set_title(t, fontsize = title_font_size)
-        if xticks != None:
+        if xticks is not None:
             ax.set_xticks(xticks)
-        if yticks != None:
+        if yticks is not None:
             ax.set_yticks(yticks)
         abund_histogram(r, bins = bins, figure_axes = ax)
     
@@ -1744,12 +1762,12 @@ def plot_delta(y, x = None, xlabel = None, ylabel = None, *args, **kwargs):
     """
     
     dy = y[1:] - y[:-1]
-    if x == None:
+    if x is None:
         x = np.arange(len(dy))
     _plt.plot(x, dy, ".", *args, **kwargs)
-    if xlabel != None:
+    if xlabel is not None:
         _plt.xlabel(xlabel, fontsize = plot_font_size)
-    if ylabel != None:
+    if ylabel is not None:
         _plt.ylabel(ylabel, fontsize = plot_font_size)
     _plt.show()
 
@@ -1757,12 +1775,12 @@ def plot_row(obj, plot_funcs, titles = None, figsize = None):
     """
     """
 
-    if figsize == None:
+    if figsize is None:
         fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs))
     else:
         fig, ax = _plt.subplots(nrows = 1, ncols = len(plot_funcs), figsize = figsize)
     for i, f in enumerate(plot_funcs):
-        if titles != None:
+        if titles is not None:
             ax[i].set_title(titles[i], fontsize = title_font_size)
         f(obj, figure_axes = ax[i])
     
@@ -1780,7 +1798,7 @@ def _hide(ax, hidden_font_size = None):
     ax.spines["left"].set_color("none")
     ax.spines["right"].set_color("none")
     ax.tick_params(labelcolor = invisible, top = "off", bottom = "off", left = "off", right = "off")
-    if hidden_font_size != None:
+    if hidden_font_size is not None:
         for label in (ax.get_xticklabels() + ax.get_yticklabels()):
             label.set_fontsize(hidden_font_size)
 #        ax.get_xticklabels().set_fontsize(hidden_font_size)
@@ -1818,7 +1836,7 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None, f
         print("WARNING: All objects does not fit in the grid, so some will be ignored.")
     
     # Create the figure
-    if None != figsize:
+    if figsize is not None:
         fig = _plt.figure(figsize = figsize)
     else:
         fig = _plt.figure()
@@ -1837,9 +1855,9 @@ def plot_grid(objects, rows, columns, plot_func, xlabel = None, ylabel = None, f
     _hide(main_ax, hidden_font_size = 1)
     
     # Set the x and y labels
-    if xlabel != None:
+    if xlabel is not None:
         main_ax.set_xlabel(xlabel, fontsize = plot_font_size)
-    if ylabel != None:
+    if ylabel is not None:
         main_ax.set_ylabel(ylabel, fontsize = plot_font_size)
     
     # Show the plot
@@ -1904,7 +1922,7 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     figsize = kwargs.pop("figsize", None)
     
     # Plot the objects
-    if figsize == None:
+    if figsize is None:
         fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey)
     else:
         fig, axes = _plt.subplots(nrows = rows, ncols = columns, sharex = sharex, sharey = sharey, figsize = figsize)
@@ -1918,15 +1936,15 @@ def plot_mosaic(objects, rows, columns, plot_func, *args, **kwargs):
     
     # Plot everything
     for i, (obj, ax) in enumerate(zip(objects, axes)):
-        if titles != None:
+        if titles is not None:
             ax.set_title(titles[i], fontsize = title_font_size)
-        if xticks != None:
+        if xticks is not None:
             ax.set_xticks(xticks)
-        if yticks != None:
+        if yticks is not None:
             ax.set_yticks(yticks)
-        if xlim != None:
+        if xlim is not None:
             ax.set_xlim(xlim)
-        if ylim != None:
+        if ylim is not None:
             ax.set_ylim(ylim)
         plot_func(obj, *args, figure_axes = ax, **kwargs)
     

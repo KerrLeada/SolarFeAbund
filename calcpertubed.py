@@ -29,7 +29,7 @@ def gen_cfg_files(pertubations, decimals = 5):
     files = [_FILENAME_PREFIX + str(i) + ".cfg" for i in range(len(pertubations))]
 
     # Set the operation
-    op = lambda x, y: x * y
+    op = lambda x, y: x + y
     
     # Create the directly, and set the permissions so only the current user can do stuff... and
     # restrict those stuff to reading and writing to files. No execution of stuff.
@@ -46,8 +46,8 @@ def gen_cfg_files(pertubations, decimals = 5):
     # Return the pertubations as well as the corresponding cfg file names
     return pertubations, files
 
-#pertubations, files = gen_cfg_files(np.arange(-0.20, 0.25, step = 0.05))
-pertubations, files = gen_cfg_files(np.arange(0.95, 1.05, step = 0.01))
+pertubations, files = gen_cfg_files(np.arange(-0.20, 0.25, step = 0.05))
+#pertubations, files = gen_cfg_files(np.arange(0.95, 1.05, step = 0.01))
 
 at = sa.satlas()
 abunds = -np.arange(4.1, 4.8, step = 0.001)

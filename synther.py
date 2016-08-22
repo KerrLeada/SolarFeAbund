@@ -34,6 +34,7 @@ from ewutils import equivalent_width
 
 # Constants... as in, not really constants, but should probably never be modified during runtime
 DEFAULT_MODEL_FILE = "data/falc_filled.nc"
+MACROTURB_VELOCITY = 1.83
 _ELEMENT = "Fe"
 
 # Original value: 101
@@ -779,7 +780,9 @@ def _fit_regions_chi(regions, wav, synth_data, abunds, verbose):
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions. Specifically, it is used later on when convolving the synthetic data.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        psf = _gaussian(tw, [1.0, 0.0, MACROTURB_VELOCITY*r.lambda_end/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, MACROTURB_VELOCITY*r.lambda0/300000.0])
         reduced_psf = psf / psf.sum()
         
         # Create lists that contains all the wavelengths and intensities for the different abundances
@@ -1047,7 +1050,9 @@ def _fit_regions_width(abund_range, regions, eq_width_unit, synth_data, wav, ver
         # Create the Gaussian for an about 1.83 km/s velocity. This is done to recreate line broadening
         # due to convective motions. Specifically, it is used later on when convolving the synthetic data.
         tw = (np.arange(15)-7)*(robs_wav[1] - robs_wav[0])
-        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lambda_end/300000.0])
+        psf = _gaussian(tw, [1.0, 0.0, MACROTURB_VELOCITY*r.lambda_end/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, 1.83*r.lab_wav/300000.0])
+#        psf = _gaussian(tw, [1.0, 0.0, MACROTURB_VELOCITY*r.lambda0/300000.0])
         reduced_psf = psf / psf.sum()
         
         # Calculate the equivalent width of the observed data
